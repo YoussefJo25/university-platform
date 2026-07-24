@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,13 +22,33 @@ export default function LoginPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    if (!isLogin) {
+      const nameParts = fullName.trim().split(/\s+/).filter(Boolean);
+      if (nameParts.length < 2) {
+        setError("من فضلك اكتب الاسم كامل (اسم ولقب على الأقل).");
+        return;
+      }
+
+      if (!/^\d{10,15}$/.test(phone)) {
+        setError("رقم الهاتف لازم يكون أرقام فقط، بين 10 و15 رقم.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     const supabase = createClient();
 
     const { error: authError } = isLogin
       ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({ email, password });
+      : await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: fullName.trim(), phone },
+          },
+        });
 
     setLoading(false);
 
@@ -58,6 +80,23 @@ export default function LoginPage() {
             onSubmit={handleSubmit}
             className="flex flex-col gap-4 rounded-2xl border border-navy/10 bg-white p-6 shadow-sm"
           >
+            {!isLogin && (
+              <div>
+                <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-navy">
+                  الاسم الكامل
+                </label>
+                <input
+                  id="fullName"
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+                  placeholder="الاسم الأول واللقب"
+                />
+              </div>
+            )}
+
             <div>
               <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-navy">
                 البريد الإلكتروني
@@ -72,6 +111,23 @@ export default function LoginPage() {
                 placeholder="example@mail.com"
               />
             </div>
+
+            {!isLogin && (
+              <div>
+                <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-navy">
+                  رقم الهاتف
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+                  placeholder="01xxxxxxxxx"
+                />
+              </div>
+            )}
 
             <div>
               <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-navy">
