@@ -18,7 +18,15 @@ function getStoragePathFromPublicUrl(publicUrl: string): string | null {
 
 type Year = { id: number; name: string; year_number: number };
 type Course = { id: number; name: string; description: string | null; year_id: number };
-type Book = { id: number; title: string; author: string | null; file_url: string | null; course_id: number };
+type Book = {
+  id: number;
+  title: string;
+  author: string | null;
+  file_url: string | null;
+  course_id: number;
+  folder_id: number | null;
+};
+type BookFolder = { id: number; course_id: number; name: string; order_index: number };
 type Playlist = {
   id: number;
   title: string;
@@ -45,6 +53,7 @@ export default function AdminPage() {
   const [years, setYears] = useState<Year[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
+  const [folders, setFolders] = useState<BookFolder[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +62,18 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
 
-    const [yearsRes, coursesRes, booksRes, playlistsRes] = await Promise.all([
+    const [yearsRes, coursesRes, booksRes, foldersRes, playlistsRes] = await Promise.all([
       supabase.from("years").select("id, name, year_number").order("year_number"),
       supabase.from("courses").select("id, name, description, year_id").order("name"),
-      supabase.from("books").select("id, title, author, file_url, course_id").order("title"),
+      supabase
+        .from("books")
+        .select("id, title, author, file_url, course_id, folder_id")
+        .order("title"),
+      supabase
+        .from("book_folders")
+        .select("id, course_id, name, order_index")
+        .order("order_index")
+        .order("name"),
       supabase
         .from("playlists")
         .select("id, title, youtube_url, course_id, order_index")
@@ -64,12 +81,13 @@ export default function AdminPage() {
         .order("title"),
     ]);
 
-    if (yearsRes.error || coursesRes.error || booksRes.error || playlistsRes.error) {
+    if (yearsRes.error || coursesRes.error || booksRes.error || foldersRes.error || playlistsRes.error) {
       setError("حدث خطأ أثناء تحميل البيانات.");
     } else {
       setYears((yearsRes.data ?? []) as Year[]);
       setCourses((coursesRes.data ?? []) as Course[]);
       setBooks((booksRes.data ?? []) as Book[]);
+      setFolders((foldersRes.data ?? []) as BookFolder[]);
       setPlaylists((playlistsRes.data ?? []) as Playlist[]);
     }
 
@@ -120,7 +138,13 @@ export default function AdminPage() {
                 <CoursesTab years={years} courses={courses} supabase={supabase} onChange={loadAll} />
               )}
               {activeTab === "books" && (
-                <BooksTab courses={courses} books={books} supabase={supabase} onChange={loadAll} />
+                <BooksTab
+                  courses={courses}
+                  books={books}
+                  folders={folders}
+                  supabase={supabase}
+                  onChange={loadAll}
+                />
               )}
               {activeTab === "playlists" && (
                 <PlaylistsTab
@@ -293,41 +317,268 @@ function CoursesTab({
 function BooksTab({
   courses,
   books,
+  folders,
   supabase,
   onChange,
 }: {
   courses: Course[];
   books: Book[];
+  folders: BookFolder[];
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
-  const empty: { title: string; author: string; course_id: number | string } = {
-    title: "",
-    author: "",
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
+  const selectedFolder = folders.find((f) => f.id === selectedFolderId) ?? null;
+  const unfiledBooks = books.filter((b) => !b.folder_id);
+
+  async function handleDeleteBook(book: Book) {
+    if (!confirm("هل أنت متأكد من حذف هذا الملف؟")) return;
+
+    if (book.file_url) {
+      const path = getStoragePathFromPublicUrl(book.file_url);
+      if (path) {
+        await supabase.storage.from("books").remove([path]);
+      }
+    }
+
+    await supabase.from("books").delete().eq("id", book.id);
+    onChange();
+  }
+
+  return (
+    <div className="flex flex-col gap-8">
+      <FolderManager
+        courses={courses}
+        folders={folders}
+        supabase={supabase}
+        onChange={onChange}
+        selectedFolderId={selectedFolderId}
+        onSelectFolder={setSelectedFolderId}
+      />
+
+      {selectedFolder && (
+        <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-navy">ملفات فولدر: {selectedFolder.name}</h2>
+            <button
+              type="button"
+              onClick={() => setSelectedFolderId(null)}
+              className="text-sm font-medium text-navy/60 hover:text-navy"
+            >
+              إغلاق
+            </button>
+          </div>
+
+          <BookUploadForm folder={selectedFolder} supabase={supabase} onChange={onChange} />
+
+          <BookList
+            books={books.filter((b) => b.folder_id === selectedFolder.id)}
+            emptyMessage="لا توجد ملفات في هذا الفولدر بعد"
+            onDelete={handleDeleteBook}
+          />
+        </div>
+      )}
+
+      {unfiledBooks.length > 0 && (
+        <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-navy">ملفات عامة (بدون فولدر)</h2>
+          <p className="mt-1 text-sm text-navy/60">
+            ملفات اتضافت قبل نظام الفولدرات، لسه موجودة ومتاحة للطلاب.
+          </p>
+          <BookList
+            books={unfiledBooks}
+            emptyMessage=""
+            onDelete={handleDeleteBook}
+            courses={courses}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FolderManager({
+  courses,
+  folders,
+  supabase,
+  onChange,
+  selectedFolderId,
+  onSelectFolder,
+}: {
+  courses: Course[];
+  folders: BookFolder[];
+  supabase: SupabaseClient;
+  onChange: () => void;
+  selectedFolderId: number | null;
+  onSelectFolder: (id: number | null) => void;
+}) {
+  const empty: { name: string; course_id: number | string } = {
+    name: "",
     course_id: courses[0]?.id ?? "",
   };
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
-  const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null);
-  const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
-  function startEdit(book: Book) {
-    setEditingId(book.id);
-    setForm({ title: book.title, author: book.author ?? "", course_id: book.course_id });
-    setExistingFileUrl(book.file_url);
-    setFile(null);
-    setFormError(null);
+  function startEdit(folder: BookFolder) {
+    setEditingId(folder.id);
+    setForm({ name: folder.name, course_id: folder.course_id });
   }
 
   function resetForm() {
     setEditingId(null);
     setForm(empty);
-    setExistingFileUrl(null);
-    setFile(null);
-    setFormError(null);
   }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+
+    const payload = { name: form.name, course_id: Number(form.course_id) };
+
+    const { error } = editingId
+      ? await supabase.from("book_folders").update(payload).eq("id", editingId)
+      : await supabase.from("book_folders").insert(payload);
+
+    setSaving(false);
+
+    if (!error) {
+      resetForm();
+      onChange();
+    }
+  }
+
+  async function handleDelete(folder: BookFolder) {
+    if (!confirm(`هل أنت متأكد من حذف فولدر "${folder.name}"؟ سيتم حذف كل الملفات بداخله.`)) return;
+
+    const { data: folderBooks } = await supabase
+      .from("books")
+      .select("file_url")
+      .eq("folder_id", folder.id);
+
+    const paths = (folderBooks ?? [])
+      .map((b) => (b.file_url ? getStoragePathFromPublicUrl(b.file_url) : null))
+      .filter((p): p is string => Boolean(p));
+
+    if (paths.length > 0) {
+      await supabase.storage.from("books").remove(paths);
+    }
+
+    await supabase.from("book_folders").delete().eq("id", folder.id);
+
+    if (selectedFolderId === folder.id) onSelectFolder(null);
+    onChange();
+  }
+
+  return (
+    <div className="flex flex-col gap-6 rounded-2xl border border-navy/10 p-6 shadow-sm">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <h2 className="text-lg font-bold text-navy">
+          {editingId ? "تعديل فولدر" : "إضافة فولدر جديد"}
+        </h2>
+
+        <input
+          required
+          placeholder="اسم الفولدر (مثلاً: ملازم، تلخيصات)"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className={inputClasses}
+        />
+        <select
+          required
+          value={form.course_id}
+          onChange={(e) => setForm({ ...form, course_id: e.target.value })}
+          className={inputClasses}
+        >
+          {courses.map((course) => (
+            <option key={course.id} value={course.id}>
+              {course.name}
+            </option>
+          ))}
+        </select>
+
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+          >
+            {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة فولدر"}
+          </button>
+          {editingId && (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="text-sm font-medium text-navy/60 hover:text-navy"
+            >
+              إلغاء
+            </button>
+          )}
+        </div>
+      </form>
+
+      <ul className="flex flex-col gap-3">
+        {folders.length === 0 ? (
+          <p className="text-sm text-navy/60">لا توجد فولدرات مضافة بعد</p>
+        ) : (
+          folders.map((folder) => (
+            <li
+              key={folder.id}
+              className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                folder.id === selectedFolderId ? "border-turquoise bg-turquoise/5" : "border-navy/10"
+              }`}
+            >
+              <div>
+                <p className="font-semibold text-navy">{folder.name}</p>
+                <p className="text-sm text-navy/60">
+                  {courses.find((c) => c.id === folder.course_id)?.name}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onSelectFolder(folder.id === selectedFolderId ? null : folder.id)}
+                  className="text-sm font-medium text-turquoise hover:underline"
+                >
+                  {folder.id === selectedFolderId ? "إخفاء الملفات" : "إدارة الملفات"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => startEdit(folder)}
+                  className="text-sm font-medium text-turquoise hover:underline"
+                >
+                  تعديل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(folder)}
+                  className="text-sm font-medium text-red-600 hover:underline"
+                >
+                  حذف
+                </button>
+              </div>
+            </li>
+          ))
+        )}
+      </ul>
+    </div>
+  );
+}
+
+function BookUploadForm({
+  folder,
+  supabase,
+  onChange,
+}: {
+  folder: BookFolder;
+  supabase: SupabaseClient;
+  onChange: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const selected = event.target.files?.[0] ?? null;
@@ -360,190 +611,143 @@ function BooksTab({
     event.preventDefault();
     setFormError(null);
 
-    if (!editingId && !file) {
+    if (!file) {
       setFormError("من فضلك اختر ملف PDF لرفعه.");
       return;
     }
 
     setSaving(true);
 
-    let fileUrl = existingFileUrl;
+    const path = `${folder.course_id}/${folder.id}/${Date.now()}-${sanitizeFileName(file.name)}`;
+    const { error: uploadError } = await supabase.storage.from("books").upload(path, file);
 
-    if (file) {
-      const path = `${form.course_id}/${Date.now()}-${sanitizeFileName(file.name)}`;
-      const { error: uploadError } = await supabase.storage.from("books").upload(path, file);
-
-      if (uploadError) {
-        setSaving(false);
-        setFormError(`فشل رفع الملف: ${uploadError.message}`);
-        return;
-      }
-
-      fileUrl = supabase.storage.from("books").getPublicUrl(path).data.publicUrl;
+    if (uploadError) {
+      setSaving(false);
+      setFormError(`فشل رفع الملف: ${uploadError.message}`);
+      return;
     }
 
-    const payload = {
-      title: form.title,
-      author: form.author || null,
-      file_url: fileUrl,
-      course_id: Number(form.course_id),
-    };
+    const fileUrl = supabase.storage.from("books").getPublicUrl(path).data.publicUrl;
 
-    const { error } = editingId
-      ? await supabase.from("books").update(payload).eq("id", editingId)
-      : await supabase.from("books").insert(payload);
+    const { error } = await supabase.from("books").insert({
+      title,
+      author: author || null,
+      file_url: fileUrl,
+      course_id: folder.course_id,
+      folder_id: folder.id,
+    });
 
     setSaving(false);
 
     if (error) {
-      setFormError(`فشل حفظ الكتاب: ${error.message}`);
+      setFormError(`فشل حفظ الملف: ${error.message}`);
       return;
     }
 
-    resetForm();
-    onChange();
-  }
-
-  async function handleDelete(book: Book) {
-    if (!confirm("هل أنت متأكد من حذف هذا الكتاب؟")) return;
-
-    if (book.file_url) {
-      const path = getStoragePathFromPublicUrl(book.file_url);
-      if (path) {
-        await supabase.storage.from("books").remove([path]);
-      }
-    }
-
-    await supabase.from("books").delete().eq("id", book.id);
+    setTitle("");
+    setAuthor("");
+    setFile(null);
     onChange();
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col gap-4 rounded-2xl border border-navy/10 p-6 shadow-sm"
+    <form
+      onSubmit={handleSubmit}
+      className="flex flex-col gap-4 rounded-xl border border-navy/10 bg-navy/5 p-4"
+    >
+      <input
+        required
+        placeholder="عنوان الملف"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className={inputClasses}
+      />
+      <input
+        placeholder="المؤلف (اختياري)"
+        value={author}
+        onChange={(e) => setAuthor(e.target.value)}
+        className={inputClasses}
+      />
+      <div>
+        <label htmlFor={`book-file-${folder.id}`} className="mb-1.5 block text-sm font-medium text-navy">
+          ملف PDF (بحد أقصى 20 ميجابايت)
+        </label>
+        <input
+          id={`book-file-${folder.id}`}
+          type="file"
+          accept="application/pdf"
+          onChange={handleFileChange}
+          className={inputClasses}
+        />
+        {file && <p className="mt-2 text-sm text-navy/60">الملف المختار: {file.name}</p>}
+      </div>
+
+      {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+      <button
+        type="submit"
+        disabled={saving}
+        className="inline-flex w-fit items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
       >
-        <h2 className="text-lg font-bold text-navy">{editingId ? "تعديل كتاب" : "إضافة كتاب جديد"}</h2>
+        {saving ? "جارٍ الرفع..." : "رفع الملف"}
+      </button>
+    </form>
+  );
+}
 
-        <input
-          required
-          placeholder="عنوان الكتاب"
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          className={inputClasses}
-        />
-        <input
-          placeholder="المؤلف"
-          value={form.author}
-          onChange={(e) => setForm({ ...form, author: e.target.value })}
-          className={inputClasses}
-        />
-        <select
-          required
-          value={form.course_id}
-          onChange={(e) => setForm({ ...form, course_id: e.target.value })}
-          className={inputClasses}
+function BookList({
+  books,
+  emptyMessage,
+  onDelete,
+  courses,
+}: {
+  books: Book[];
+  emptyMessage: string;
+  onDelete: (book: Book) => void;
+  courses?: Course[];
+}) {
+  if (books.length === 0) {
+    return emptyMessage ? <p className="mt-4 text-sm text-navy/60">{emptyMessage}</p> : null;
+  }
+
+  return (
+    <ul className="mt-4 flex flex-col gap-3">
+      {books.map((book) => (
+        <li
+          key={book.id}
+          className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
         >
-          {courses.map((course) => (
-            <option key={course.id} value={course.id}>
-              {course.name}
-            </option>
-          ))}
-        </select>
-
-        <div>
-          <label htmlFor="book-file" className="mb-1.5 block text-sm font-medium text-navy">
-            ملف الكتاب (PDF، بحد أقصى 20 ميجابايت)
-          </label>
-          <input
-            id="book-file"
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-            className={inputClasses}
-          />
-          {editingId && existingFileUrl && !file && (
-            <p className="mt-2 text-sm text-navy/60">
-              الملف الحالي:{" "}
-              <a
-                href={existingFileUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-turquoise hover:underline"
-              >
-                فتح الملف
-              </a>{" "}
-              — اختر ملفًا جديدًا لاستبداله، أو اتركه لإبقاء الملف الحالي.
-            </p>
-          )}
-          {file && <p className="mt-2 text-sm text-navy/60">الملف المختار: {file.name}</p>}
-        </div>
-
-        {formError && <p className="text-sm text-red-600">{formError}</p>}
-
-        <div className="flex gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
-          >
-            {saving ? "جارٍ الرفع والحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
-          </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="text-sm font-medium text-navy/60 hover:text-navy"
-            >
-              إلغاء
-            </button>
-          )}
-        </div>
-      </form>
-
-      <ul className="flex flex-col gap-3">
-        {books.map((book) => (
-          <li
-            key={book.id}
-            className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div>
-              <p className="font-semibold text-navy">{book.title}</p>
+          <div>
+            <p className="font-semibold text-navy">{book.title}</p>
+            {book.author && <p className="text-sm text-navy/60">{book.author}</p>}
+            {courses && (
               <p className="text-sm text-navy/60">
                 {courses.find((c) => c.id === book.course_id)?.name}
               </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {book.file_url && (
-                <a
-                  href={book.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-turquoise hover:underline"
-                >
-                  تحميل
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={() => startEdit(book)}
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {book.file_url && (
+              <a
+                href={book.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-sm font-medium text-turquoise hover:underline"
               >
-                تعديل
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDelete(book)}
-                className="text-sm font-medium text-red-600 hover:underline"
-              >
-                حذف
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+                تحميل
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => onDelete(book)}
+              className="text-sm font-medium text-red-600 hover:underline"
+            >
+              حذف
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 

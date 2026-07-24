@@ -9,6 +9,12 @@ type BookRow = {
   file_url: string | null;
 };
 
+type BookFolderGroup = {
+  id: number;
+  name: string;
+  books: BookRow[];
+};
+
 type VideoItem = {
   id: string;
   title: string;
@@ -23,7 +29,8 @@ type PlaylistGroup = {
 
 type CourseTabsProps = {
   description: string | null;
-  books: BookRow[];
+  bookFolders: BookFolderGroup[];
+  unfiledBooks: BookRow[];
   playlistGroups: PlaylistGroup[];
 };
 
@@ -35,7 +42,12 @@ const tabs = [
 
 type TabKey = (typeof tabs)[number]["key"];
 
-export default function CourseTabs({ description, books, playlistGroups }: CourseTabsProps) {
+export default function CourseTabs({
+  description,
+  bookFolders,
+  unfiledBooks,
+  playlistGroups,
+}: CourseTabsProps) {
   const [active, setActive] = useState<TabKey>("overview");
 
   return (
@@ -71,32 +83,21 @@ export default function CourseTabs({ description, books, playlistGroups }: Cours
         {active === "books" && (
           <div>
             <h2 className="text-lg font-bold text-navy">الكتب</h2>
-            {books.length === 0 ? (
+            {bookFolders.length === 0 && unfiledBooks.length === 0 ? (
               <p className="mt-3 text-sm text-navy/60">لا توجد كتب مضافة بعد</p>
             ) : (
-              <ul className="mt-4 flex flex-col gap-3">
-                {books.map((book) => (
-                  <li
-                    key={book.id}
-                    className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <p className="font-semibold text-navy">{book.title}</p>
-                      {book.author && <p className="text-sm text-navy/60">{book.author}</p>}
-                    </div>
-                    {book.file_url && (
-                      <a
-                        href={book.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-4 py-2 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-105"
-                      >
-                        تحميل الكتاب
-                      </a>
-                    )}
-                  </li>
+              <div className="mt-4 flex flex-col gap-3">
+                {bookFolders.map((folder) => (
+                  <BookFolderAccordion key={folder.id} name={folder.name} books={folder.books} />
                 ))}
-              </ul>
+                {unfiledBooks.length > 0 && (
+                  <BookFolderAccordion
+                    name="ملفات عامة"
+                    books={unfiledBooks}
+                    defaultOpen={bookFolders.length === 0}
+                  />
+                )}
+              </div>
             )}
           </div>
         )}
@@ -193,6 +194,73 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+function BookFolderAccordion({
+  name,
+  books,
+  defaultOpen = false,
+}: {
+  name: string;
+  books: BookRow[];
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-xl border border-navy/10">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between px-4 py-3 text-right"
+      >
+        <span className="font-semibold text-navy">{name}</span>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2}
+          stroke="currentColor"
+          className={`h-5 w-5 shrink-0 text-navy/60 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="border-t border-navy/10 p-4">
+          {books.length === 0 ? (
+            <p className="text-sm text-navy/60">لا توجد ملفات في هذا الفولدر بعد</p>
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {books.map((book) => (
+                <li
+                  key={book.id}
+                  className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-semibold text-navy">{book.title}</p>
+                    {book.author && <p className="text-sm text-navy/60">{book.author}</p>}
+                  </div>
+                  {book.file_url && (
+                    <a
+                      href={book.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-4 py-2 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-105"
+                    >
+                      تحميل الكتاب
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }

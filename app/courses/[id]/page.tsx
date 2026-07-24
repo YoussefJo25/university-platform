@@ -20,6 +20,19 @@ type BookRow = {
   title: string;
   author: string | null;
   file_url: string | null;
+  folder_id: number | null;
+};
+
+type BookFolderRow = {
+  id: number;
+  name: string;
+  order_index: number;
+};
+
+type BookFolderGroup = {
+  id: number;
+  name: string;
+  books: BookRow[];
 };
 
 type PlaylistRow = {
@@ -86,12 +99,18 @@ export default async function CourseDetailPage({
 
   const course = courseData as unknown as CourseRow;
 
-  const [{ data: booksData }, { data: playlistsData }] = await Promise.all([
+  const [{ data: booksData }, { data: folderRows }, { data: playlistsData }] = await Promise.all([
     supabase
       .from("books")
-      .select("id, title, author, file_url")
+      .select("id, title, author, file_url, folder_id")
       .eq("course_id", id)
       .order("title"),
+    supabase
+      .from("book_folders")
+      .select("id, name, order_index")
+      .eq("course_id", id)
+      .order("order_index")
+      .order("name"),
     supabase
       .from("playlists")
       .select("id, title, youtube_url, order_index")
@@ -101,6 +120,13 @@ export default async function CourseDetailPage({
   ]);
 
   const books = (booksData ?? []) as BookRow[];
+  const bookFolderRows = (folderRows ?? []) as BookFolderRow[];
+  const bookFolders: BookFolderGroup[] = bookFolderRows.map((folder) => ({
+    id: folder.id,
+    name: folder.name,
+    books: books.filter((book) => book.folder_id === folder.id),
+  }));
+  const unfiledBooks = books.filter((book) => !book.folder_id);
   const playlistRows = (playlistsData ?? []) as PlaylistRow[];
   const playlistGroups: PlaylistGroup[] = await Promise.all(
     playlistRows.map(async (row) => ({
@@ -128,7 +154,12 @@ export default async function CourseDetailPage({
             الرجوع لمواد {course.years?.name ?? "السنة الدراسية"}
           </Link>
 
-          <CourseTabs description={course.description} books={books} playlistGroups={playlistGroups} />
+          <CourseTabs
+            description={course.description}
+            bookFolders={bookFolders}
+            unfiledBooks={unfiledBooks}
+            playlistGroups={playlistGroups}
+          />
         </div>
       </section>
     </div>
