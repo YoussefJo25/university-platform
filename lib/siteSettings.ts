@@ -9,6 +9,8 @@ export type SiteSettings = {
   social_twitter: string;
   social_instagram: string;
   footer_text: string;
+  about_university_text: string;
+  founding_year: string;
 };
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
@@ -22,6 +24,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   social_twitter: "",
   social_instagram: "",
   footer_text: "جميع الحقوق محفوظة لجامعة المنيا الاهلية",
+  about_university_text: "",
+  founding_year: "",
 };
 
 type SettingRow = { key: string; value: string | null };

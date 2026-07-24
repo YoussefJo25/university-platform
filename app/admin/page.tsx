@@ -7,9 +7,12 @@ import {
   mergeSiteSettingsRows,
   type SiteSettings,
 } from "@/lib/siteSettings";
+import { ROLE_FALLBACK_TITLE, ROLE_ORDER, type LeadershipMember, type RoleKey } from "@/lib/leadership";
 
 const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_BIO_LENGTH = 500;
+const MAX_ABOUT_LENGTH = 1500;
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -41,13 +44,14 @@ type Playlist = {
   order_index: number;
 };
 
-type TabKey = "courses" | "books" | "playlists" | "settings";
+type TabKey = "courses" | "books" | "playlists" | "settings" | "leadership";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "courses", label: "المواد" },
   { key: "books", label: "الكتب" },
   { key: "playlists", label: "الفيديوهات" },
   { key: "settings", label: "إعدادات الموقع" },
+  { key: "leadership", label: "القيادة والنبذة" },
 ];
 
 const inputClasses =
@@ -63,6 +67,7 @@ export default function AdminPage() {
   const [folders, setFolders] = useState<BookFolder[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [leadershipMembers, setLeadershipMembers] = useState<LeadershipMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,7 +75,7 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
 
-    const [yearsRes, coursesRes, booksRes, foldersRes, playlistsRes, settingsRes] =
+    const [yearsRes, coursesRes, booksRes, foldersRes, playlistsRes, settingsRes, leadershipRes] =
       await Promise.all([
         supabase.from("years").select("id, name, year_number").order("year_number"),
         supabase.from("courses").select("id, name, description, year_id").order("name"),
@@ -89,6 +94,10 @@ export default function AdminPage() {
           .order("order_index")
           .order("title"),
         supabase.from("site_settings").select("key, value"),
+        supabase
+          .from("leadership_members")
+          .select("id, role_key, name, title, bio, photo_url, order_index")
+          .order("order_index"),
       ]);
 
     if (yearsRes.error || coursesRes.error || booksRes.error || foldersRes.error || playlistsRes.error) {
@@ -101,12 +110,16 @@ export default function AdminPage() {
       setPlaylists((playlistsRes.data ?? []) as Playlist[]);
     }
 
-    // إعدادات الموقع منفصلة عن باقي البيانات عشان لو جدول site_settings
-    // لسه معملوش migration، باقي التابات تفضل شغالة عادي بالقيم الافتراضية
+    // إعدادات الموقع وبيانات القيادة منفصلين عن باقي البيانات عشان لو
+    // migration معملوش لسه، باقي التابات تفضل شغالة عادي بالقيم الافتراضية
     if (!settingsRes.error) {
       setSettings(
         mergeSiteSettingsRows((settingsRes.data ?? []) as { key: string; value: string | null }[])
       );
+    }
+
+    if (!leadershipRes.error) {
+      setLeadershipMembers((leadershipRes.data ?? []) as LeadershipMember[]);
     }
 
     setLoading(false);
@@ -174,6 +187,14 @@ export default function AdminPage() {
               )}
               {activeTab === "settings" && (
                 <SettingsTab settings={settings} supabase={supabase} onChange={loadAll} />
+              )}
+              {activeTab === "leadership" && (
+                <LeadershipTab
+                  members={leadershipMembers}
+                  settings={settings}
+                  supabase={supabase}
+                  onChange={loadAll}
+                />
               )}
             </div>
           )}
@@ -1223,6 +1244,286 @@ function SettingsTab({
           className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
         >
           {saving ? "جارٍ الحفظ..." : "حفظ الإعدادات"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+type MemberFormState = { name: string; title: string; bio: string; photo_url: string | null };
+
+function buildMemberForms(members: LeadershipMember[]): Record<RoleKey, MemberFormState> {
+  const byRole = new Map(members.map((member) => [member.role_key, member]));
+  const result = {} as Record<RoleKey, MemberFormState>;
+
+  for (const roleKey of ROLE_ORDER) {
+    const member = byRole.get(roleKey);
+    result[roleKey] = {
+      name: member?.name ?? "",
+      title: member?.title ?? "",
+      bio: member?.bio ?? "",
+      photo_url: member?.photo_url ?? null,
+    };
+  }
+
+  return result;
+}
+
+function LeadershipTab({
+  members,
+  settings,
+  supabase,
+  onChange,
+}: {
+  members: LeadershipMember[];
+  settings: SiteSettings;
+  supabase: SupabaseClient;
+  onChange: () => void;
+}) {
+  const [memberForms, setMemberForms] = useState<Record<RoleKey, MemberFormState>>(() =>
+    buildMemberForms(members)
+  );
+  const [memberFiles, setMemberFiles] = useState<Partial<Record<RoleKey, File>>>({});
+  const [aboutText, setAboutText] = useState(settings.about_university_text);
+  const [foundingYear, setFoundingYear] = useState(settings.founding_year);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState(false);
+
+  useEffect(() => {
+    setMemberForms(buildMemberForms(members));
+  }, [members]);
+
+  useEffect(() => {
+    setAboutText(settings.about_university_text);
+    setFoundingYear(settings.founding_year);
+  }, [settings]);
+
+  function updateMemberField(roleKey: RoleKey, field: keyof MemberFormState, value: string) {
+    setMemberForms((prev) => ({ ...prev, [roleKey]: { ...prev[roleKey], [field]: value } }));
+    setSuccessMessage(false);
+  }
+
+  function handlePhotoChange(roleKey: RoleKey, event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setFormError(null);
+    setSuccessMessage(false);
+
+    if (!selected) {
+      setMemberFiles((prev) => ({ ...prev, [roleKey]: undefined }));
+      return;
+    }
+
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedTypes.includes(selected.type)) {
+      setFormError("الصورة لازم تكون بصيغة PNG أو JPEG أو WebP.");
+      event.target.value = "";
+      return;
+    }
+
+    if (selected.size > MAX_LOGO_FILE_SIZE) {
+      setFormError("حجم الصورة أكبر من الحد المسموح به (2 ميجابايت).");
+      event.target.value = "";
+      return;
+    }
+
+    setMemberFiles((prev) => ({ ...prev, [roleKey]: selected }));
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSuccessMessage(false);
+
+    for (const roleKey of ROLE_ORDER) {
+      if (memberForms[roleKey].bio.length > MAX_BIO_LENGTH) {
+        setFormError(
+          `نبذة "${ROLE_FALLBACK_TITLE[roleKey]}" لازم تكون ${MAX_BIO_LENGTH} حرف أو أقل.`
+        );
+        return;
+      }
+    }
+
+    if (aboutText.length > MAX_ABOUT_LENGTH) {
+      setFormError(`نبذة الجامعة لازم تكون ${MAX_ABOUT_LENGTH} حرف أو أقل.`);
+      return;
+    }
+
+    setSaving(true);
+
+    const updatedPhotoUrls: Partial<Record<RoleKey, string>> = {};
+
+    for (const roleKey of ROLE_ORDER) {
+      const file = memberFiles[roleKey];
+      if (!file) continue;
+
+      const path = `leadership/${roleKey}/${Date.now()}-${sanitizeFileName(file.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("site-assets")
+        .upload(path, file);
+
+      if (uploadError) {
+        setSaving(false);
+        setFormError(`فشل رفع صورة "${ROLE_FALLBACK_TITLE[roleKey]}": ${uploadError.message}`);
+        return;
+      }
+
+      updatedPhotoUrls[roleKey] = supabase.storage.from("site-assets").getPublicUrl(path).data
+        .publicUrl;
+    }
+
+    const memberUpdates = await Promise.all(
+      ROLE_ORDER.map((roleKey) => {
+        const form = memberForms[roleKey];
+        return supabase
+          .from("leadership_members")
+          .update({
+            name: form.name,
+            title: form.title || null,
+            bio: form.bio || null,
+            photo_url: updatedPhotoUrls[roleKey] ?? form.photo_url,
+          })
+          .eq("role_key", roleKey);
+      })
+    );
+
+    const failedMemberUpdate = memberUpdates.find((res) => res.error);
+
+    const { error: settingsError } = await supabase.from("site_settings").upsert(
+      [
+        { key: "about_university_text", value: aboutText },
+        { key: "founding_year", value: foundingYear },
+      ],
+      { onConflict: "key" }
+    );
+
+    setSaving(false);
+
+    if (failedMemberUpdate || settingsError) {
+      setFormError(
+        `فشل حفظ البيانات: ${failedMemberUpdate?.error?.message ?? settingsError?.message}`
+      );
+      return;
+    }
+
+    setMemberFiles({});
+    setSuccessMessage(true);
+    onChange();
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+      {ROLE_ORDER.map((roleKey) => (
+        <div key={roleKey} className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-navy">{ROLE_FALLBACK_TITLE[roleKey]}</h2>
+          <div className="mt-4 flex flex-col gap-4">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-navy">الاسم</label>
+              <input
+                required
+                value={memberForms[roleKey].name}
+                onChange={(e) => updateMemberField(roleKey, "name", e.target.value)}
+                className={inputClasses}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-navy">المسمى</label>
+              <input
+                value={memberForms[roleKey].title}
+                onChange={(e) => updateMemberField(roleKey, "title", e.target.value)}
+                className={inputClasses}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-navy">
+                نبذة ({memberForms[roleKey].bio.length}/{MAX_BIO_LENGTH})
+              </label>
+              <textarea
+                rows={3}
+                maxLength={MAX_BIO_LENGTH}
+                value={memberForms[roleKey].bio}
+                onChange={(e) => updateMemberField(roleKey, "bio", e.target.value)}
+                className={inputClasses}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-navy">
+                الصورة (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
+              </label>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => handlePhotoChange(roleKey, e)}
+                className={inputClasses}
+              />
+              {memberForms[roleKey].photo_url && !memberFiles[roleKey] && (
+                <p className="mt-2 text-sm text-navy/60">
+                  الصورة الحالية:{" "}
+                  <a
+                    href={memberForms[roleKey].photo_url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-turquoise hover:underline"
+                  >
+                    عرض
+                  </a>
+                </p>
+              )}
+              {memberFiles[roleKey] && (
+                <p className="mt-2 text-sm text-navy/60">
+                  الصورة المختارة: {memberFiles[roleKey]?.name}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-navy">نبذة عن الجامعة</h2>
+        <div className="mt-4 flex flex-col gap-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              سنة التأسيس (اختياري)
+            </label>
+            <input
+              value={foundingYear}
+              onChange={(e) => {
+                setFoundingYear(e.target.value);
+                setSuccessMessage(false);
+              }}
+              className={inputClasses}
+              placeholder="مثلاً 2015"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              النص ({aboutText.length}/{MAX_ABOUT_LENGTH})
+            </label>
+            <textarea
+              rows={5}
+              maxLength={MAX_ABOUT_LENGTH}
+              value={aboutText}
+              onChange={(e) => {
+                setAboutText(e.target.value);
+                setSuccessMessage(false);
+              }}
+              className={inputClasses}
+            />
+          </div>
+        </div>
+      </div>
+
+      {formError && <p className="text-sm text-red-600">{formError}</p>}
+      {successMessage && <p className="text-sm text-green-600">تم حفظ البيانات بنجاح.</p>}
+
+      <div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+        >
+          {saving ? "جارٍ الحفظ..." : "حفظ"}
         </button>
       </div>
     </form>
