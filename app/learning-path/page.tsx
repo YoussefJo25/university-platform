@@ -10,11 +10,24 @@ type CourseRow = {
 };
 
 export default async function LearningPathPage() {
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("courses")
     .select("id, name, description")
     .eq("category", "learning_path")
+    .is("parent_course_id", null)
     .order("name");
+
+  if (error) {
+    // parent_course_id ممكن يكون لسه معملوش migration (course_sections_setup.sql)
+    const fallback = await supabase
+      .from("courses")
+      .select("id, name, description")
+      .eq("category", "learning_path")
+      .order("name");
+
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   const paths = (data ?? []) as CourseRow[];
 
