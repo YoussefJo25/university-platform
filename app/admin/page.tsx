@@ -1,7 +1,20 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+
+const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+}
+
+function getStoragePathFromPublicUrl(publicUrl: string): string | null {
+  const marker = "/object/public/books/";
+  const index = publicUrl.indexOf(marker);
+  if (index === -1) return null;
+  return decodeURIComponent(publicUrl.slice(index + marker.length));
+}
 
 type Year = { id: number; name: string; year_number: number };
 type Course = { id: number; name: string; description: string | null; year_id: number };
@@ -288,39 +301,91 @@ function BooksTab({
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
-  const empty: { title: string; author: string; file_url: string; course_id: number | string } = {
+  const empty: { title: string; author: string; course_id: number | string } = {
     title: "",
     author: "",
-    file_url: "",
     course_id: courses[0]?.id ?? "",
   };
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
+  const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null);
+  const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   function startEdit(book: Book) {
     setEditingId(book.id);
-    setForm({
-      title: book.title,
-      author: book.author ?? "",
-      file_url: book.file_url ?? "",
-      course_id: book.course_id,
-    });
+    setForm({ title: book.title, author: book.author ?? "", course_id: book.course_id });
+    setExistingFileUrl(book.file_url);
+    setFile(null);
+    setFormError(null);
   }
 
   function resetForm() {
     setEditingId(null);
     setForm(empty);
+    setExistingFileUrl(null);
+    setFile(null);
+    setFormError(null);
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setFormError(null);
+
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+
+    const isPdf = selected.type === "application/pdf" || selected.name.toLowerCase().endsWith(".pdf");
+    if (!isPdf) {
+      setFormError("الملف لازم يكون بصيغة PDF فقط.");
+      event.target.value = "";
+      setFile(null);
+      return;
+    }
+
+    if (selected.size > MAX_BOOK_FILE_SIZE) {
+      setFormError("حجم الملف أكبر من الحد المسموح به (20 ميجابايت).");
+      event.target.value = "";
+      setFile(null);
+      return;
+    }
+
+    setFile(selected);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setFormError(null);
+
+    if (!editingId && !file) {
+      setFormError("من فضلك اختر ملف PDF لرفعه.");
+      return;
+    }
+
     setSaving(true);
+
+    let fileUrl = existingFileUrl;
+
+    if (file) {
+      const path = `${form.course_id}/${Date.now()}-${sanitizeFileName(file.name)}`;
+      const { error: uploadError } = await supabase.storage.from("books").upload(path, file);
+
+      if (uploadError) {
+        setSaving(false);
+        setFormError(`فشل رفع الملف: ${uploadError.message}`);
+        return;
+      }
+
+      fileUrl = supabase.storage.from("books").getPublicUrl(path).data.publicUrl;
+    }
 
     const payload = {
       title: form.title,
       author: form.author || null,
-      file_url: form.file_url || null,
+      file_url: fileUrl,
       course_id: Number(form.course_id),
     };
 
@@ -330,15 +395,26 @@ function BooksTab({
 
     setSaving(false);
 
-    if (!error) {
-      resetForm();
-      onChange();
+    if (error) {
+      setFormError(`فشل حفظ الكتاب: ${error.message}`);
+      return;
     }
+
+    resetForm();
+    onChange();
   }
 
-  async function handleDelete(id: number) {
+  async function handleDelete(book: Book) {
     if (!confirm("هل أنت متأكد من حذف هذا الكتاب؟")) return;
-    await supabase.from("books").delete().eq("id", id);
+
+    if (book.file_url) {
+      const path = getStoragePathFromPublicUrl(book.file_url);
+      if (path) {
+        await supabase.storage.from("books").remove([path]);
+      }
+    }
+
+    await supabase.from("books").delete().eq("id", book.id);
     onChange();
   }
 
@@ -363,12 +439,6 @@ function BooksTab({
           onChange={(e) => setForm({ ...form, author: e.target.value })}
           className={inputClasses}
         />
-        <input
-          placeholder="رابط الملف"
-          value={form.file_url}
-          onChange={(e) => setForm({ ...form, file_url: e.target.value })}
-          className={inputClasses}
-        />
         <select
           required
           value={form.course_id}
@@ -382,13 +452,43 @@ function BooksTab({
           ))}
         </select>
 
+        <div>
+          <label htmlFor="book-file" className="mb-1.5 block text-sm font-medium text-navy">
+            ملف الكتاب (PDF، بحد أقصى 20 ميجابايت)
+          </label>
+          <input
+            id="book-file"
+            type="file"
+            accept="application/pdf"
+            onChange={handleFileChange}
+            className={inputClasses}
+          />
+          {editingId && existingFileUrl && !file && (
+            <p className="mt-2 text-sm text-navy/60">
+              الملف الحالي:{" "}
+              <a
+                href={existingFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-turquoise hover:underline"
+              >
+                فتح الملف
+              </a>{" "}
+              — اختر ملفًا جديدًا لاستبداله، أو اتركه لإبقاء الملف الحالي.
+            </p>
+          )}
+          {file && <p className="mt-2 text-sm text-navy/60">الملف المختار: {file.name}</p>}
+        </div>
+
+        {formError && <p className="text-sm text-red-600">{formError}</p>}
+
         <div className="flex gap-3">
           <button
             type="submit"
             disabled={saving}
             className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
           >
-            {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
+            {saving ? "جارٍ الرفع والحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
           </button>
           {editingId && (
             <button
@@ -414,7 +514,17 @@ function BooksTab({
                 {courses.find((c) => c.id === book.course_id)?.name}
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
+              {book.file_url && (
+                <a
+                  href={book.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-turquoise hover:underline"
+                >
+                  تحميل
+                </a>
+              )}
               <button
                 type="button"
                 onClick={() => startEdit(book)}
@@ -424,7 +534,7 @@ function BooksTab({
               </button>
               <button
                 type="button"
-                onClick={() => handleDelete(book.id)}
+                onClick={() => handleDelete(book)}
                 className="text-sm font-medium text-red-600 hover:underline"
               >
                 حذف
