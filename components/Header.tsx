@@ -2,16 +2,64 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
-const navLinks = [
+const baseNavLinks = [
   { href: "/", label: "الرئيسية" },
   { href: "/academic-years", label: "السنين الدراسية" },
-  { href: "/login", label: "تسجيل الدخول" },
 ];
 
 export default function Header() {
+  const router = useRouter();
+  const supabase = createClient();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    async function loadUser() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setEmail(user?.email ?? null);
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        setIsAdmin(profile?.role === "admin");
+      } else {
+        setIsAdmin(false);
+      }
+    }
+
+    loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      loadUser();
+    });
+
+    return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    setIsMenuOpen(false);
+    router.push("/");
+    router.refresh();
+  }
+
+  const navLinks = isAdmin
+    ? [...baseNavLinks, { href: "/admin", label: "لوحة التحكم" }]
+    : baseNavLinks;
 
   return (
     <header className="sticky top-0 z-50 bg-gradient-to-l from-navy to-turquoise shadow-md">
@@ -40,6 +88,26 @@ export default function Header() {
               {link.label}
             </Link>
           ))}
+
+          {email ? (
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-white/90">{email}</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-full bg-white/15 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/25"
+              >
+                تسجيل خروج
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="text-sm font-medium text-white/90 transition-colors hover:text-white"
+            >
+              تسجيل الدخول
+            </Link>
+          )}
         </nav>
 
         <button
@@ -78,6 +146,27 @@ export default function Header() {
               {link.label}
             </Link>
           ))}
+
+          {email ? (
+            <>
+              <span className="px-3 py-2 text-sm font-medium text-white/70">{email}</span>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-lg px-3 py-2 text-right text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                تسجيل خروج
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              onClick={() => setIsMenuOpen(false)}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              تسجيل الدخول
+            </Link>
+          )}
         </nav>
       )}
     </header>
