@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npx tsc *)",
+      "Bash(lsof -ti:3000 -sTCP:LISTEN)",
+      "Bash(disown)",
+      "Bash(timeout 45 bash -c 'until curl -sf http://localhost:3000 >/dev/null; do sleep 1; done')",
+      "Bash(find / -iname \"*chromium-cli*\" 2>/dev/null | grep -v proc | head -20)",
+      "Read(//c//**)"
+    ]
+  }
+}
