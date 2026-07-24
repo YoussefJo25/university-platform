@@ -11,7 +11,12 @@ const baseNavLinks = [
   { href: "/academic-years", label: "السنين الدراسية" },
 ];
 
-export default function Header() {
+type HeaderProps = {
+  universityName: string;
+  logoUrl: string | null;
+};
+
+export default function Header({ universityName, logoUrl }: HeaderProps) {
   const router = useRouter();
   const supabase = createClient();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -66,16 +71,14 @@ export default function Header() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
           <Image
-            src="/logo.jpeg"
-            alt="شعار جامعة المنيا الاهلية"
+            src={logoUrl || "/logo.jpeg"}
+            alt={`شعار ${universityName}`}
             width={48}
             height={48}
             priority
             className="h-10 w-10 shrink-0 rounded-full border-2 border-white/80 object-cover shadow-sm sm:h-12 sm:w-12"
           />
-          <span className="text-base font-bold text-white sm:text-xl">
-            جامعة المنيا الاهلية
-          </span>
+          <span className="text-base font-bold text-white sm:text-xl">{universityName}</span>
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">

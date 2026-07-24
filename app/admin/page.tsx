@@ -2,8 +2,14 @@
 
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+import {
+  DEFAULT_SITE_SETTINGS,
+  mergeSiteSettingsRows,
+  type SiteSettings,
+} from "@/lib/siteSettings";
 
 const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -35,12 +41,13 @@ type Playlist = {
   order_index: number;
 };
 
-type TabKey = "courses" | "books" | "playlists";
+type TabKey = "courses" | "books" | "playlists" | "settings";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "courses", label: "المواد" },
   { key: "books", label: "الكتب" },
   { key: "playlists", label: "الفيديوهات" },
+  { key: "settings", label: "إعدادات الموقع" },
 ];
 
 const inputClasses =
@@ -55,6 +62,7 @@ export default function AdminPage() {
   const [books, setBooks] = useState<Book[]>([]);
   const [folders, setFolders] = useState<BookFolder[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,24 +70,26 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
 
-    const [yearsRes, coursesRes, booksRes, foldersRes, playlistsRes] = await Promise.all([
-      supabase.from("years").select("id, name, year_number").order("year_number"),
-      supabase.from("courses").select("id, name, description, year_id").order("name"),
-      supabase
-        .from("books")
-        .select("id, title, author, file_url, course_id, folder_id")
-        .order("title"),
-      supabase
-        .from("book_folders")
-        .select("id, course_id, name, order_index")
-        .order("order_index")
-        .order("name"),
-      supabase
-        .from("playlists")
-        .select("id, title, youtube_url, course_id, order_index")
-        .order("order_index")
-        .order("title"),
-    ]);
+    const [yearsRes, coursesRes, booksRes, foldersRes, playlistsRes, settingsRes] =
+      await Promise.all([
+        supabase.from("years").select("id, name, year_number").order("year_number"),
+        supabase.from("courses").select("id, name, description, year_id").order("name"),
+        supabase
+          .from("books")
+          .select("id, title, author, file_url, course_id, folder_id")
+          .order("title"),
+        supabase
+          .from("book_folders")
+          .select("id, course_id, name, order_index")
+          .order("order_index")
+          .order("name"),
+        supabase
+          .from("playlists")
+          .select("id, title, youtube_url, course_id, order_index")
+          .order("order_index")
+          .order("title"),
+        supabase.from("site_settings").select("key, value"),
+      ]);
 
     if (yearsRes.error || coursesRes.error || booksRes.error || foldersRes.error || playlistsRes.error) {
       setError("حدث خطأ أثناء تحميل البيانات.");
@@ -89,6 +99,14 @@ export default function AdminPage() {
       setBooks((booksRes.data ?? []) as Book[]);
       setFolders((foldersRes.data ?? []) as BookFolder[]);
       setPlaylists((playlistsRes.data ?? []) as Playlist[]);
+    }
+
+    // إعدادات الموقع منفصلة عن باقي البيانات عشان لو جدول site_settings
+    // لسه معملوش migration، باقي التابات تفضل شغالة عادي بالقيم الافتراضية
+    if (!settingsRes.error) {
+      setSettings(
+        mergeSiteSettingsRows((settingsRes.data ?? []) as { key: string; value: string | null }[])
+      );
     }
 
     setLoading(false);
@@ -153,6 +171,9 @@ export default function AdminPage() {
                   supabase={supabase}
                   onChange={loadAll}
                 />
+              )}
+              {activeTab === "settings" && (
+                <SettingsTab settings={settings} supabase={supabase} onChange={loadAll} />
               )}
             </div>
           )}
@@ -940,5 +961,270 @@ function PlaylistsTab({
         ))}
       </ul>
     </div>
+  );
+}
+
+function SettingsTab({
+  settings,
+  supabase,
+  onChange,
+}: {
+  settings: SiteSettings;
+  supabase: SupabaseClient;
+  onChange: () => void;
+}) {
+  const [form, setForm] = useState(settings);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState(false);
+
+  useEffect(() => {
+    setForm(settings);
+  }, [settings]);
+
+  function updateField<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setSuccessMessage(false);
+  }
+
+  function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setFormError(null);
+    setSuccessMessage(false);
+
+    if (!selected) {
+      setLogoFile(null);
+      return;
+    }
+
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedTypes.includes(selected.type)) {
+      setFormError("اللوجو لازم يكون صورة بصيغة PNG أو JPEG أو WebP.");
+      event.target.value = "";
+      setLogoFile(null);
+      return;
+    }
+
+    if (selected.size > MAX_LOGO_FILE_SIZE) {
+      setFormError("حجم الصورة أكبر من الحد المسموح به (2 ميجابايت).");
+      event.target.value = "";
+      setLogoFile(null);
+      return;
+    }
+
+    setLogoFile(selected);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSuccessMessage(false);
+
+    if (form.hero_title.length > 100) {
+      setFormError("عنوان الصفحة الرئيسية لازم يكون 100 حرف أو أقل.");
+      return;
+    }
+
+    if (form.hero_subtitle.length > 300) {
+      setFormError("وصف الصفحة الرئيسية لازم يكون 300 حرف أو أقل.");
+      return;
+    }
+
+    setSaving(true);
+
+    let logoUrl = form.logo_url;
+
+    if (logoFile) {
+      const path = `logo/${Date.now()}-${sanitizeFileName(logoFile.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("site-assets")
+        .upload(path, logoFile);
+
+      if (uploadError) {
+        setSaving(false);
+        setFormError(`فشل رفع اللوجو: ${uploadError.message}`);
+        return;
+      }
+
+      logoUrl = supabase.storage.from("site-assets").getPublicUrl(path).data.publicUrl;
+    }
+
+    const finalSettings: SiteSettings = { ...form, logo_url: logoUrl };
+    const rows = Object.entries(finalSettings).map(([key, value]) => ({ key, value }));
+
+    const { error } = await supabase.from("site_settings").upsert(rows, { onConflict: "key" });
+
+    setSaving(false);
+
+    if (error) {
+      setFormError(`فشل حفظ الإعدادات: ${error.message}`);
+      return;
+    }
+
+    setLogoFile(null);
+    setSuccessMessage(true);
+    onChange();
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-navy">الهوية</h2>
+        <div className="mt-4 flex flex-col gap-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">اسم الجامعة</label>
+            <input
+              required
+              value={form.university_name}
+              onChange={(e) => updateField("university_name", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              اللوجو (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
+            </label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleLogoChange}
+              className={inputClasses}
+            />
+            {form.logo_url && !logoFile && (
+              <p className="mt-2 text-sm text-navy/60">
+                اللوجو الحالي:{" "}
+                <a
+                  href={form.logo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-turquoise hover:underline"
+                >
+                  عرض
+                </a>
+              </p>
+            )}
+            {logoFile && (
+              <p className="mt-2 text-sm text-navy/60">اللوجو المختار: {logoFile.name}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-navy">الصفحة الرئيسية</h2>
+        <div className="mt-4 flex flex-col gap-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              عنوان الـ Hero ({form.hero_title.length}/100)
+            </label>
+            <input
+              required
+              maxLength={100}
+              value={form.hero_title}
+              onChange={(e) => updateField("hero_title", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              الوصف ({form.hero_subtitle.length}/300)
+            </label>
+            <textarea
+              required
+              maxLength={300}
+              rows={3}
+              value={form.hero_subtitle}
+              onChange={(e) => updateField("hero_subtitle", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-navy">التواصل</h2>
+        <div className="mt-4 flex flex-col gap-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              إيميل الدعم الفني
+            </label>
+            <input
+              type="email"
+              required
+              value={form.support_email}
+              onChange={(e) => updateField("support_email", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              رقم الهاتف (اختياري)
+            </label>
+            <input
+              value={form.support_phone}
+              onChange={(e) => updateField("support_phone", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              رابط فيسبوك (اختياري)
+            </label>
+            <input
+              value={form.social_facebook}
+              onChange={(e) => updateField("social_facebook", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              رابط تويتر (اختياري)
+            </label>
+            <input
+              value={form.social_twitter}
+              onChange={(e) => updateField("social_twitter", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              رابط انستجرام (اختياري)
+            </label>
+            <input
+              value={form.social_instagram}
+              onChange={(e) => updateField("social_instagram", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-navy">الفوتر</h2>
+        <div className="mt-4">
+          <label className="mb-1.5 block text-sm font-medium text-navy">نص حقوق الملكية</label>
+          <input
+            required
+            value={form.footer_text}
+            onChange={(e) => updateField("footer_text", e.target.value)}
+            className={inputClasses}
+          />
+        </div>
+      </div>
+
+      {formError && <p className="text-sm text-red-600">{formError}</p>}
+      {successMessage && <p className="text-sm text-green-600">تم حفظ الإعدادات بنجاح.</p>}
+
+      <div>
+        <button
+          type="submit"
+          disabled={saving}
+          className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+        >
+          {saving ? "جارٍ الحفظ..." : "حفظ الإعدادات"}
+        </button>
+      </div>
+    </form>
   );
 }
