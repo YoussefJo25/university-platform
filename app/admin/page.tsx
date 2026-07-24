@@ -35,6 +35,7 @@ type Course = {
   year_id: number | null;
   term_id: number | null;
   category: CourseCategory;
+  parent_course_id: number | null;
 };
 type Book = {
   id: number;
@@ -81,6 +82,31 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  async function fetchCourses() {
+    const full = await supabase
+      .from("courses")
+      .select("id, name, description, year_id, term_id, category, parent_course_id")
+      .order("name");
+
+    if (!full.error) return full;
+
+    // parent_course_id ممكن يكون لسه معملوش migration (course_sections_setup.sql)
+    // نرجع لاستعلام بدونه عشان باقي التاب مايتوقفش بالكامل
+    const withoutParent = await supabase
+      .from("courses")
+      .select("id, name, description, year_id, term_id, category")
+      .order("name");
+
+    if (!withoutParent.error) {
+      return {
+        ...withoutParent,
+        data: (withoutParent.data ?? []).map((c) => ({ ...c, parent_course_id: null })),
+      };
+    }
+
+    return full;
+  }
+
   async function loadAll() {
     setLoading(true);
     setError(null);
@@ -97,10 +123,7 @@ export default function AdminPage() {
     ] = await Promise.all([
       supabase.from("years").select("id, name, year_number").order("year_number"),
       supabase.from("terms").select("id, year_id, term_number, name").order("term_number"),
-      supabase
-        .from("courses")
-        .select("id, name, description, year_id, term_id, category")
-        .order("name"),
+      fetchCourses(),
       supabase
         .from("books")
         .select("id, title, author, file_url, course_id, folder_id")
@@ -266,12 +289,14 @@ function CoursesTab({
     category: CourseCategory;
     year_id: number | string;
     term_id: number | string;
+    parent_course_id: number | string;
   } = {
     name: "",
     description: "",
     category: "academic",
     year_id: initialYearId,
     term_id: termsForYear(initialYearId)[0]?.id ?? "",
+    parent_course_id: "",
   };
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
@@ -279,6 +304,9 @@ function CoursesTab({
 
   const availableTerms = termsForYear(form.year_id);
   const isAcademic = form.category === "academic";
+  const availableParents = courses.filter(
+    (c) => c.category === "learning_path" && c.id !== editingId
+  );
 
   function handleYearChange(newYearId: string) {
     const nextTerms = termsForYear(newYearId);
@@ -293,6 +321,7 @@ function CoursesTab({
       category: course.category,
       year_id: course.year_id ?? initialYearId,
       term_id: course.term_id ?? "",
+      parent_course_id: course.parent_course_id ?? "",
     });
   }
 
@@ -311,6 +340,7 @@ function CoursesTab({
       category: CourseCategory;
       year_id: number | null;
       term_id: number | null;
+      parent_course_id: number | null;
     } = isAcademic
       ? {
           name: form.name,
@@ -318,6 +348,7 @@ function CoursesTab({
           category: "academic",
           year_id: Number(form.year_id),
           term_id: form.term_id ? Number(form.term_id) : null,
+          parent_course_id: null,
         }
       : {
           name: form.name,
@@ -325,6 +356,7 @@ function CoursesTab({
           category: "learning_path",
           year_id: null,
           term_id: null,
+          parent_course_id: form.parent_course_id ? Number(form.parent_course_id) : null,
         };
 
     const { error } = editingId
@@ -413,6 +445,26 @@ function CoursesTab({
           </>
         )}
 
+        {!isAcademic && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              قسم أب (اختياري)
+            </label>
+            <select
+              value={form.parent_course_id}
+              onChange={(e) => setForm({ ...form, parent_course_id: e.target.value })}
+              className={inputClasses}
+            >
+              <option value="">بدون (مسار رئيسي)</option>
+              {availableParents.map((parentCourse) => (
+                <option key={parentCourse.id} value={parentCourse.id}>
+                  {parentCourse.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         <div className="flex gap-3">
           <button
             type="submit"
@@ -443,7 +495,11 @@ function CoursesTab({
               <p className="font-semibold text-navy">{course.name}</p>
               {course.category === "learning_path" ? (
                 <span className="mt-1 inline-flex items-center rounded-full bg-turquoise/10 px-2 py-0.5 text-xs font-semibold text-turquoise">
-                  مسار تعلم برمجة
+                  {course.parent_course_id
+                    ? `تابع لـ ${
+                        courses.find((c) => c.id === course.parent_course_id)?.name ?? "؟"
+                      }`
+                    : "مسار تعلم برمجة"}
                 </span>
               ) : (
                 <p className="text-sm text-navy/60">

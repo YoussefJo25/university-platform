@@ -13,7 +13,19 @@ type CourseRow = {
   description: string | null;
   year_id: number | null;
   category: "academic" | "learning_path";
+  parent_course_id: number | null;
   years: { name: string; year_number: number } | null;
+};
+
+type ChildCourseRow = {
+  id: number;
+  name: string;
+  description: string | null;
+};
+
+type ParentCourseRow = {
+  id: number;
+  name: string;
 };
 
 type BookRow = {
@@ -90,22 +102,35 @@ export default async function CourseDetailPage({
 
   let { data: courseData, error: courseError } = await supabase
     .from("courses")
-    .select("id, name, description, year_id, category, years(name, year_number)")
+    .select("id, name, description, year_id, category, parent_course_id, years(name, year_number)")
     .eq("id", id)
     .single();
 
   if (courseError) {
-    // عمود category ممكن يكون لسه معملوش له migration (supabase/learning_path_setup.sql)
-    // نرجع للاستعلام القديم عشان المواد الأكاديمية الموجودة تفضل شغالة
-    const fallback = await supabase
+    // parent_course_id ممكن يكون لسه معملوش migration (course_sections_setup.sql)
+    // حتى لو category أصلاً متاح - نرجع لاستعلام بيحافظ على category الحقيقي
+    const withoutParent = await supabase
       .from("courses")
-      .select("id, name, description, year_id, years(name, year_number)")
+      .select("id, name, description, year_id, category, years(name, year_number)")
       .eq("id", id)
       .single();
 
-    if (!fallback.error && fallback.data) {
-      courseData = { ...fallback.data, category: "academic" };
+    if (!withoutParent.error && withoutParent.data) {
+      courseData = { ...withoutParent.data, parent_course_id: null };
       courseError = null;
+    } else {
+      // category كمان ممكن يكون لسه معملوش migration (learning_path_setup.sql)
+      // نرجع للاستعلام القديم تمامًا عشان المواد الأكاديمية الموجودة تفضل شغالة
+      const fallback = await supabase
+        .from("courses")
+        .select("id, name, description, year_id, years(name, year_number)")
+        .eq("id", id)
+        .single();
+
+      if (!fallback.error && fallback.data) {
+        courseData = { ...fallback.data, category: "academic", parent_course_id: null };
+        courseError = null;
+      }
     }
   }
 
@@ -115,42 +140,73 @@ export default async function CourseDetailPage({
 
   const course = courseData as unknown as CourseRow;
 
-  const [{ data: booksData }, { data: folderRows }, { data: playlistsData }] = await Promise.all([
+  const [childrenRes, parentRes] = await Promise.all([
     supabase
-      .from("books")
-      .select("id, title, author, file_url, folder_id")
-      .eq("course_id", id)
-      .order("title"),
-    supabase
-      .from("book_folders")
-      .select("id, name, order_index")
-      .eq("course_id", id)
-      .order("order_index")
+      .from("courses")
+      .select("id, name, description")
+      .eq("parent_course_id", id)
       .order("name"),
-    supabase
-      .from("playlists")
-      .select("id, title, youtube_url, order_index")
-      .eq("course_id", id)
-      .order("order_index")
-      .order("title"),
+    course.parent_course_id
+      ? supabase.from("courses").select("id, name").eq("id", course.parent_course_id).single()
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
-  const books = (booksData ?? []) as BookRow[];
-  const bookFolderRows = (folderRows ?? []) as BookFolderRow[];
-  const bookFolders: BookFolderGroup[] = bookFolderRows.map((folder) => ({
-    id: folder.id,
-    name: folder.name,
-    books: books.filter((book) => book.folder_id === folder.id),
-  }));
-  const unfiledBooks = books.filter((book) => !book.folder_id);
-  const playlistRows = (playlistsData ?? []) as PlaylistRow[];
-  const playlistGroups: PlaylistGroup[] = await Promise.all(
-    playlistRows.map(async (row) => ({
-      id: row.id,
-      title: row.title,
-      videos: await expandPlaylistRow(row),
-    }))
-  );
+  const children = (childrenRes.error ? [] : (childrenRes.data ?? [])) as ChildCourseRow[];
+  const parent = (parentRes.error ? null : parentRes.data) as ParentCourseRow | null;
+  const hasChildren = children.length > 0;
+
+  let bookFolders: BookFolderGroup[] = [];
+  let unfiledBooks: BookRow[] = [];
+  let playlistGroups: PlaylistGroup[] = [];
+
+  if (!hasChildren) {
+    const [{ data: booksData }, { data: folderRows }, { data: playlistsData }] = await Promise.all([
+      supabase
+        .from("books")
+        .select("id, title, author, file_url, folder_id")
+        .eq("course_id", id)
+        .order("title"),
+      supabase
+        .from("book_folders")
+        .select("id, name, order_index")
+        .eq("course_id", id)
+        .order("order_index")
+        .order("name"),
+      supabase
+        .from("playlists")
+        .select("id, title, youtube_url, order_index")
+        .eq("course_id", id)
+        .order("order_index")
+        .order("title"),
+    ]);
+
+    const books = (booksData ?? []) as BookRow[];
+    const bookFolderRows = (folderRows ?? []) as BookFolderRow[];
+    bookFolders = bookFolderRows.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      books: books.filter((book) => book.folder_id === folder.id),
+    }));
+    unfiledBooks = books.filter((book) => !book.folder_id);
+    const playlistRows = (playlistsData ?? []) as PlaylistRow[];
+    playlistGroups = await Promise.all(
+      playlistRows.map(async (row) => ({
+        id: row.id,
+        title: row.title,
+        videos: await expandPlaylistRow(row),
+      }))
+    );
+  }
+
+  const backLink =
+    course.category === "learning_path"
+      ? course.parent_course_id && parent
+        ? { href: `/courses/${course.parent_course_id}`, label: `الرجوع لـ ${parent.name}` }
+        : { href: "/learning-path", label: "الرجوع لمسارات تعلم البرمجة" }
+      : {
+          href: `/academic-years/${course.year_id}`,
+          label: `الرجوع لمواد ${course.years?.name ?? "السنة الدراسية"}`,
+        };
 
   return (
     <div className="flex flex-1 flex-col">
@@ -168,20 +224,40 @@ export default async function CourseDetailPage({
       <section className="flex-1 bg-white px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <Link
-            href={course.category === "learning_path" ? "/learning-path" : `/academic-years/${course.year_id}`}
+            href={backLink.href}
             className="mb-8 inline-block text-sm font-medium text-navy transition-colors hover:text-turquoise"
           >
-            {course.category === "learning_path"
-              ? "الرجوع لمسارات تعلم البرمجة"
-              : `الرجوع لمواد ${course.years?.name ?? "السنة الدراسية"}`}
+            {backLink.label}
           </Link>
 
-          <CourseTabs
-            description={course.description}
-            bookFolders={bookFolders}
-            unfiledBooks={unfiledBooks}
-            playlistGroups={playlistGroups}
-          />
+          {hasChildren ? (
+            <div>
+              {course.description && (
+                <p className="mb-8 text-sm leading-7 text-navy/70">{course.description}</p>
+              )}
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {children.map((child) => (
+                  <Link
+                    key={child.id}
+                    href={`/courses/${child.id}`}
+                    className="rounded-2xl border border-navy/10 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+                  >
+                    <h2 className="text-lg font-bold text-navy">{child.name}</h2>
+                    {child.description && (
+                      <p className="mt-2 text-sm text-navy/70">{child.description}</p>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <CourseTabs
+              description={course.description}
+              bookFolders={bookFolders}
+              unfiledBooks={unfiledBooks}
+              playlistGroups={playlistGroups}
+            />
+          )}
         </div>
       </section>
     </div>
