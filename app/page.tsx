@@ -50,6 +50,11 @@ export default async function Home() {
       desc: "تصفح المقررات والمحتوى الخاص بكل سنة دراسية",
       href: "/academic-years",
     },
+    {
+      title: "مسار تعلم البرمجة",
+      desc: "تعلم البرمجة خطوة بخطوة عبر مسارات متخصصة",
+      href: "/learning-path",
+    },
     ...(user
       ? isAdmin
         ? [
@@ -94,7 +99,7 @@ export default async function Home() {
       </section>
 
       <section className="bg-white px-4 py-16 sm:px-6">
-        <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((item) => (
             <Link
               key={item.title}
