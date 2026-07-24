@@ -56,7 +56,14 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
       loadUser();
     });
 
-    return () => subscription.unsubscribe();
+    // تحديث البيانات لما المستخدم يعدّل بروفايله من /profile
+    // (مش جزء من حالة الـ auth نفسها فمش بتطلق onAuthStateChange)
+    window.addEventListener("profile-updated", loadUser);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("profile-updated", loadUser);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -99,7 +106,27 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
 
           {email ? (
             <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-white/90">{displayName}</span>
+              <Link
+                href="/profile"
+                className="flex items-center gap-1.5 text-sm font-medium text-white/90 transition-colors hover:text-white hover:underline"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0ZM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+                  />
+                </svg>
+                {displayName}
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
@@ -157,7 +184,13 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
 
           {email ? (
             <>
-              <span className="px-3 py-2 text-sm font-medium text-white/70">{displayName}</span>
+              <Link
+                href="/profile"
+                onClick={() => setIsMenuOpen(false)}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white hover:underline"
+              >
+                {displayName}
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}

@@ -43,6 +43,10 @@ export default async function proxy(request: NextRequest) {
     }
   }
 
+  if (request.nextUrl.pathname.startsWith("/profile") && !user) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
   return supabaseResponse;
 }
 
