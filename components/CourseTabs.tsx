@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { getYoutubeEmbedUrl } from "@/lib/youtube";
 
 type BookRow = {
   id: number;
@@ -10,17 +9,16 @@ type BookRow = {
   file_url: string | null;
 };
 
-type PlaylistRow = {
-  id: number;
+type VideoItem = {
+  id: string;
   title: string;
-  youtube_url: string;
-  order_index: number;
+  embedUrl: string | null;
 };
 
 type CourseTabsProps = {
   description: string | null;
   books: BookRow[];
-  playlists: PlaylistRow[];
+  videos: VideoItem[];
 };
 
 const tabs = [
@@ -31,7 +29,7 @@ const tabs = [
 
 type TabKey = (typeof tabs)[number]["key"];
 
-export default function CourseTabs({ description, books, playlists }: CourseTabsProps) {
+export default function CourseTabs({ description, books, videos }: CourseTabsProps) {
   const [active, setActive] = useState<TabKey>("overview");
 
   return (
@@ -100,10 +98,10 @@ export default function CourseTabs({ description, books, playlists }: CourseTabs
         {active === "videos" && (
           <div>
             <h2 className="text-lg font-bold text-navy">الفيديوهات</h2>
-            {playlists.length === 0 ? (
+            {videos.length === 0 ? (
               <p className="mt-3 text-sm text-navy/60">لا توجد فيديوهات مضافة بعد</p>
             ) : (
-              <VideoPlayer playlists={playlists} />
+              <VideoPlayer videos={videos} />
             )}
           </div>
         )}
@@ -112,19 +110,18 @@ export default function CourseTabs({ description, books, playlists }: CourseTabs
   );
 }
 
-function VideoPlayer({ playlists }: { playlists: PlaylistRow[] }) {
-  const [selectedId, setSelectedId] = useState(playlists[0]?.id);
-  const selected = playlists.find((p) => p.id === selectedId) ?? playlists[0];
-  const embedUrl = getYoutubeEmbedUrl(selected.youtube_url);
+function VideoPlayer({ videos }: { videos: VideoItem[] }) {
+  const [selectedId, setSelectedId] = useState(videos[0]?.id);
+  const selected = videos.find((v) => v.id === selectedId) ?? videos[0];
 
   return (
     <div className="mt-4 flex flex-col gap-6 sm:flex-row-reverse">
       <div className="flex-1">
-        {embedUrl ? (
+        {selected.embedUrl ? (
           <div className="aspect-video w-full overflow-hidden rounded-xl border border-navy/10 shadow-sm">
             <iframe
               key={selected.id}
-              src={embedUrl}
+              src={selected.embedUrl}
               title={selected.title}
               className="h-full w-full"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -139,21 +136,21 @@ function VideoPlayer({ playlists }: { playlists: PlaylistRow[] }) {
         <p className="mt-3 font-semibold text-navy">{selected.title}</p>
       </div>
 
-      {playlists.length > 1 && (
+      {videos.length > 1 && (
         <ul className="flex flex-col gap-2 sm:w-72 sm:shrink-0">
-          {playlists.map((playlist) => (
-            <li key={playlist.id}>
+          {videos.map((video) => (
+            <li key={video.id}>
               <button
                 type="button"
-                onClick={() => setSelectedId(playlist.id)}
-                aria-pressed={playlist.id === selected.id}
+                onClick={() => setSelectedId(video.id)}
+                aria-pressed={video.id === selected.id}
                 className={`w-full rounded-xl px-4 py-3 text-right text-sm font-medium transition-colors ${
-                  playlist.id === selected.id
+                  video.id === selected.id
                     ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
                     : "bg-navy/5 text-navy/80 hover:bg-navy/10"
                 }`}
               >
-                {playlist.title}
+                {video.title}
               </button>
             </li>
           ))}

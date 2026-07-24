@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { extractPlaylistId, getYoutubeEmbedUrl } from "@/lib/youtube";
+import { getPlaylistVideos } from "@/lib/youtubeApi";
 import CourseTabs from "@/components/CourseTabs";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +28,38 @@ type PlaylistRow = {
   youtube_url: string;
   order_index: number;
 };
+
+type VideoItem = {
+  id: string;
+  title: string;
+  embedUrl: string | null;
+};
+
+async function expandPlaylistRow(row: PlaylistRow): Promise<VideoItem[]> {
+  const playlistId = extractPlaylistId(row.youtube_url);
+
+  if (playlistId) {
+    const playlistVideos = await getPlaylistVideos(playlistId);
+
+    if (playlistVideos.length > 0) {
+      return playlistVideos
+        .sort((a, b) => a.position - b.position)
+        .map((video) => ({
+          id: `${row.id}-${video.videoId}`,
+          title: video.title,
+          embedUrl: `https://www.youtube.com/embed/${video.videoId}`,
+        }));
+    }
+  }
+
+  return [
+    {
+      id: `row-${row.id}`,
+      title: row.title,
+      embedUrl: getYoutubeEmbedUrl(row.youtube_url),
+    },
+  ];
+}
 
 export default async function CourseDetailPage({
   params,
@@ -61,7 +95,8 @@ export default async function CourseDetailPage({
   ]);
 
   const books = (booksData ?? []) as BookRow[];
-  const playlists = (playlistsData ?? []) as PlaylistRow[];
+  const playlistRows = (playlistsData ?? []) as PlaylistRow[];
+  const videos = (await Promise.all(playlistRows.map(expandPlaylistRow))).flat();
 
   return (
     <div className="flex flex-1 flex-col">
@@ -81,7 +116,7 @@ export default async function CourseDetailPage({
             الرجوع لمواد {course.years?.name ?? "السنة الدراسية"}
           </Link>
 
-          <CourseTabs description={course.description} books={books} playlists={playlists} />
+          <CourseTabs description={course.description} books={books} videos={videos} />
         </div>
       </section>
     </div>

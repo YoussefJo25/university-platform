@@ -1,3 +1,21 @@
+export function extractPlaylistId(url: string): string | null {
+  if (!url) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+
+  const host = parsed.hostname.replace(/^www\./, "").replace(/^m\./, "");
+  if (host !== "youtube.com" && host !== "youtu.be") {
+    return null;
+  }
+
+  return parsed.searchParams.get("list");
+}
+
 export function getYoutubeEmbedUrl(url: string): string | null {
   if (!url) return null;
 
