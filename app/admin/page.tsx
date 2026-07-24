@@ -26,7 +26,14 @@ function getStoragePathFromPublicUrl(publicUrl: string): string | null {
 }
 
 type Year = { id: number; name: string; year_number: number };
-type Course = { id: number; name: string; description: string | null; year_id: number };
+type Term = { id: number; year_id: number; term_number: number; name: string };
+type Course = {
+  id: number;
+  name: string;
+  description: string | null;
+  year_id: number;
+  term_id: number | null;
+};
 type Book = {
   id: number;
   title: string;
@@ -62,6 +69,7 @@ export default function AdminPage() {
 
   const [activeTab, setActiveTab] = useState<TabKey>("courses");
   const [years, setYears] = useState<Year[]>([]);
+  const [terms, setTerms] = useState<Term[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [books, setBooks] = useState<Book[]>([]);
   const [folders, setFolders] = useState<BookFolder[]>([]);
@@ -75,35 +83,52 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
 
-    const [yearsRes, coursesRes, booksRes, foldersRes, playlistsRes, settingsRes, leadershipRes] =
-      await Promise.all([
-        supabase.from("years").select("id, name, year_number").order("year_number"),
-        supabase.from("courses").select("id, name, description, year_id").order("name"),
-        supabase
-          .from("books")
-          .select("id, title, author, file_url, course_id, folder_id")
-          .order("title"),
-        supabase
-          .from("book_folders")
-          .select("id, course_id, name, order_index")
-          .order("order_index")
-          .order("name"),
-        supabase
-          .from("playlists")
-          .select("id, title, youtube_url, course_id, order_index")
-          .order("order_index")
-          .order("title"),
-        supabase.from("site_settings").select("key, value"),
-        supabase
-          .from("leadership_members")
-          .select("id, role_key, name, title, bio, photo_url, order_index")
-          .order("order_index"),
-      ]);
+    const [
+      yearsRes,
+      termsRes,
+      coursesRes,
+      booksRes,
+      foldersRes,
+      playlistsRes,
+      settingsRes,
+      leadershipRes,
+    ] = await Promise.all([
+      supabase.from("years").select("id, name, year_number").order("year_number"),
+      supabase.from("terms").select("id, year_id, term_number, name").order("term_number"),
+      supabase.from("courses").select("id, name, description, year_id, term_id").order("name"),
+      supabase
+        .from("books")
+        .select("id, title, author, file_url, course_id, folder_id")
+        .order("title"),
+      supabase
+        .from("book_folders")
+        .select("id, course_id, name, order_index")
+        .order("order_index")
+        .order("name"),
+      supabase
+        .from("playlists")
+        .select("id, title, youtube_url, course_id, order_index")
+        .order("order_index")
+        .order("title"),
+      supabase.from("site_settings").select("key, value"),
+      supabase
+        .from("leadership_members")
+        .select("id, role_key, name, title, bio, photo_url, order_index")
+        .order("order_index"),
+    ]);
 
-    if (yearsRes.error || coursesRes.error || booksRes.error || foldersRes.error || playlistsRes.error) {
+    if (
+      yearsRes.error ||
+      termsRes.error ||
+      coursesRes.error ||
+      booksRes.error ||
+      foldersRes.error ||
+      playlistsRes.error
+    ) {
       setError("حدث خطأ أثناء تحميل البيانات.");
     } else {
       setYears((yearsRes.data ?? []) as Year[]);
+      setTerms((termsRes.data ?? []) as Term[]);
       setCourses((coursesRes.data ?? []) as Course[]);
       setBooks((booksRes.data ?? []) as Book[]);
       setFolders((foldersRes.data ?? []) as BookFolder[]);
@@ -166,7 +191,13 @@ export default function AdminPage() {
           ) : (
             <div className="mt-6">
               {activeTab === "courses" && (
-                <CoursesTab years={years} courses={courses} supabase={supabase} onChange={loadAll} />
+                <CoursesTab
+                  years={years}
+                  terms={terms}
+                  courses={courses}
+                  supabase={supabase}
+                  onChange={loadAll}
+                />
               )}
               {activeTab === "books" && (
                 <BooksTab
@@ -208,27 +239,52 @@ type SupabaseClient = ReturnType<typeof createClient>;
 
 function CoursesTab({
   years,
+  terms,
   courses,
   supabase,
   onChange,
 }: {
   years: Year[];
+  terms: Term[];
   courses: Course[];
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
-  const empty: { name: string; description: string; year_id: number | string } = {
+  function termsForYear(yearId: number | string): Term[] {
+    return terms.filter((t) => String(t.year_id) === String(yearId));
+  }
+
+  const initialYearId = years[0]?.id ?? "";
+  const empty: {
+    name: string;
+    description: string;
+    year_id: number | string;
+    term_id: number | string;
+  } = {
     name: "",
     description: "",
-    year_id: years[0]?.id ?? "",
+    year_id: initialYearId,
+    term_id: termsForYear(initialYearId)[0]?.id ?? "",
   };
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
+  const availableTerms = termsForYear(form.year_id);
+
+  function handleYearChange(newYearId: string) {
+    const nextTerms = termsForYear(newYearId);
+    setForm({ ...form, year_id: newYearId, term_id: nextTerms[0]?.id ?? "" });
+  }
+
   function startEdit(course: Course) {
     setEditingId(course.id);
-    setForm({ name: course.name, description: course.description ?? "", year_id: course.year_id });
+    setForm({
+      name: course.name,
+      description: course.description ?? "",
+      year_id: course.year_id,
+      term_id: course.term_id ?? "",
+    });
   }
 
   function resetForm() {
@@ -244,6 +300,7 @@ function CoursesTab({
       name: form.name,
       description: form.description || null,
       year_id: Number(form.year_id),
+      term_id: form.term_id ? Number(form.term_id) : null,
     };
 
     const { error } = editingId
@@ -291,12 +348,25 @@ function CoursesTab({
         <select
           required
           value={form.year_id}
-          onChange={(e) => setForm({ ...form, year_id: e.target.value })}
+          onChange={(e) => handleYearChange(e.target.value)}
           className={inputClasses}
         >
           {years.map((year) => (
             <option key={year.id} value={year.id}>
               {year.name}
+            </option>
+          ))}
+        </select>
+        <select
+          required
+          value={form.term_id}
+          onChange={(e) => setForm({ ...form, term_id: e.target.value })}
+          className={inputClasses}
+        >
+          {availableTerms.length === 0 && <option value="">لا توجد ترمين لهذه السنة</option>}
+          {availableTerms.map((term) => (
+            <option key={term.id} value={term.id}>
+              {term.name}
             </option>
           ))}
         </select>
@@ -331,6 +401,8 @@ function CoursesTab({
               <p className="font-semibold text-navy">{course.name}</p>
               <p className="text-sm text-navy/60">
                 {years.find((y) => y.id === course.year_id)?.name}
+                {course.term_id &&
+                  ` — ${terms.find((t) => t.id === course.term_id)?.name ?? ""}`}
               </p>
             </div>
             <div className="flex gap-3">

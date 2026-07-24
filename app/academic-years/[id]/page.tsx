@@ -10,10 +10,11 @@ type YearRow = {
   name: string;
 };
 
-type CourseRow = {
+type TermRow = {
   id: number;
+  term_number: number;
   name: string;
-  description: string | null;
+  courses: { count: number }[];
 };
 
 export default async function YearDetailPage({
@@ -35,13 +36,13 @@ export default async function YearDetailPage({
 
   const year = yearData as YearRow;
 
-  const { data: coursesData, error: coursesError } = await supabase
-    .from("courses")
-    .select("id, name, description")
+  const { data: termsData, error: termsError } = await supabase
+    .from("terms")
+    .select("id, term_number, name, courses(count)")
     .eq("year_id", id)
-    .order("name");
+    .order("term_number");
 
-  const courses = (coursesData ?? []) as CourseRow[];
+  const terms = (termsData ?? []) as TermRow[];
 
   return (
     <div className="flex flex-1 flex-col">
@@ -51,7 +52,7 @@ export default async function YearDetailPage({
         </span>
         <h1 className="text-2xl font-extrabold text-white sm:text-4xl">{year.name}</h1>
         <p className="mt-3 text-sm text-white/90 sm:text-base">
-          المواد الدراسية الخاصة بهذه السنة
+          اختر الترم الدراسي للاطلاع على مواده
         </p>
       </section>
 
@@ -64,26 +65,33 @@ export default async function YearDetailPage({
             الرجوع للسنين الدراسية
           </Link>
 
-          {coursesError && (
-            <p className="text-center text-sm text-red-600">حدث خطأ أثناء تحميل المواد.</p>
+          {termsError && (
+            <p className="text-center text-sm text-red-600">حدث خطأ أثناء تحميل الترمين.</p>
           )}
 
-          {!coursesError && courses.length === 0 && (
-            <p className="text-center text-sm text-navy/60">لا توجد مواد مضافة لهذه السنة حاليًا.</p>
+          {!termsError && terms.length === 0 && (
+            <p className="text-center text-sm text-navy/60">
+              لا توجد ترمين مضافين لهذه السنة حاليًا.
+            </p>
           )}
 
-          {!coursesError && courses.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {courses.map((course) => (
+          {!termsError && terms.length > 0 && (
+            <div className="grid gap-6 sm:grid-cols-2">
+              {terms.map((term) => (
                 <Link
-                  key={course.id}
-                  href={`/courses/${course.id}`}
-                  className="rounded-2xl border border-navy/10 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+                  key={term.id}
+                  href={`/academic-years/${id}/terms/${term.id}`}
+                  className="flex flex-col items-center gap-4 rounded-2xl border border-navy/10 bg-white p-6 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
-                  <h2 className="text-lg font-bold text-navy">{course.name}</h2>
-                  {course.description && (
-                    <p className="mt-2 text-sm text-navy/70">{course.description}</p>
-                  )}
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise text-2xl font-bold text-white">
+                    {term.term_number}
+                  </span>
+                  <div>
+                    <h2 className="text-lg font-bold text-navy">{term.name}</h2>
+                    <p className="mt-1 text-sm text-navy/60">
+                      {term.courses?.[0]?.count ?? 0} مادة دراسية
+                    </p>
+                  </div>
                 </Link>
               ))}
             </div>
