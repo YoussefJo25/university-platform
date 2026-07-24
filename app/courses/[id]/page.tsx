@@ -11,7 +11,8 @@ type CourseRow = {
   id: number;
   name: string;
   description: string | null;
-  year_id: number;
+  year_id: number | null;
+  category: "academic" | "learning_path";
   years: { name: string; year_number: number } | null;
 };
 
@@ -87,11 +88,26 @@ export default async function CourseDetailPage({
 }) {
   const { id } = await params;
 
-  const { data: courseData, error: courseError } = await supabase
+  let { data: courseData, error: courseError } = await supabase
     .from("courses")
-    .select("id, name, description, year_id, years(name, year_number)")
+    .select("id, name, description, year_id, category, years(name, year_number)")
     .eq("id", id)
     .single();
+
+  if (courseError) {
+    // عمود category ممكن يكون لسه معملوش له migration (supabase/learning_path_setup.sql)
+    // نرجع للاستعلام القديم عشان المواد الأكاديمية الموجودة تفضل شغالة
+    const fallback = await supabase
+      .from("courses")
+      .select("id, name, description, year_id, years(name, year_number)")
+      .eq("id", id)
+      .single();
+
+    if (!fallback.error && fallback.data) {
+      courseData = { ...fallback.data, category: "academic" };
+      courseError = null;
+    }
+  }
 
   if (courseError || !courseData) {
     notFound();
@@ -139,8 +155,12 @@ export default async function CourseDetailPage({
   return (
     <div className="flex flex-1 flex-col">
       <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-14 text-center sm:px-6">
-        {course.years && (
-          <p className="text-xs font-medium text-white/70 sm:text-sm">{course.years.name}</p>
+        {course.category === "learning_path" ? (
+          <p className="text-xs font-medium text-white/70 sm:text-sm">مسار تعلم البرمجة</p>
+        ) : (
+          course.years && (
+            <p className="text-xs font-medium text-white/70 sm:text-sm">{course.years.name}</p>
+          )
         )}
         <h1 className="mt-2 text-2xl font-extrabold text-white sm:text-4xl">{course.name}</h1>
       </section>
@@ -148,10 +168,12 @@ export default async function CourseDetailPage({
       <section className="flex-1 bg-white px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <Link
-            href={`/academic-years/${course.year_id}`}
+            href={course.category === "learning_path" ? "/learning-path" : `/academic-years/${course.year_id}`}
             className="mb-8 inline-block text-sm font-medium text-navy transition-colors hover:text-turquoise"
           >
-            الرجوع لمواد {course.years?.name ?? "السنة الدراسية"}
+            {course.category === "learning_path"
+              ? "الرجوع لمسارات تعلم البرمجة"
+              : `الرجوع لمواد ${course.years?.name ?? "السنة الدراسية"}`}
           </Link>
 
           <CourseTabs

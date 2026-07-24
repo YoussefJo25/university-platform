@@ -27,12 +27,14 @@ function getStoragePathFromPublicUrl(publicUrl: string): string | null {
 
 type Year = { id: number; name: string; year_number: number };
 type Term = { id: number; year_id: number; term_number: number; name: string };
+type CourseCategory = "academic" | "learning_path";
 type Course = {
   id: number;
   name: string;
   description: string | null;
-  year_id: number;
+  year_id: number | null;
   term_id: number | null;
+  category: CourseCategory;
 };
 type Book = {
   id: number;
@@ -95,7 +97,10 @@ export default function AdminPage() {
     ] = await Promise.all([
       supabase.from("years").select("id, name, year_number").order("year_number"),
       supabase.from("terms").select("id, year_id, term_number, name").order("term_number"),
-      supabase.from("courses").select("id, name, description, year_id, term_id").order("name"),
+      supabase
+        .from("courses")
+        .select("id, name, description, year_id, term_id, category")
+        .order("name"),
       supabase
         .from("books")
         .select("id, title, author, file_url, course_id, folder_id")
@@ -258,11 +263,13 @@ function CoursesTab({
   const empty: {
     name: string;
     description: string;
+    category: CourseCategory;
     year_id: number | string;
     term_id: number | string;
   } = {
     name: "",
     description: "",
+    category: "academic",
     year_id: initialYearId,
     term_id: termsForYear(initialYearId)[0]?.id ?? "",
   };
@@ -271,6 +278,7 @@ function CoursesTab({
   const [saving, setSaving] = useState(false);
 
   const availableTerms = termsForYear(form.year_id);
+  const isAcademic = form.category === "academic";
 
   function handleYearChange(newYearId: string) {
     const nextTerms = termsForYear(newYearId);
@@ -282,7 +290,8 @@ function CoursesTab({
     setForm({
       name: course.name,
       description: course.description ?? "",
-      year_id: course.year_id,
+      category: course.category,
+      year_id: course.year_id ?? initialYearId,
       term_id: course.term_id ?? "",
     });
   }
@@ -296,12 +305,27 @@ function CoursesTab({
     event.preventDefault();
     setSaving(true);
 
-    const payload = {
-      name: form.name,
-      description: form.description || null,
-      year_id: Number(form.year_id),
-      term_id: form.term_id ? Number(form.term_id) : null,
-    };
+    const payload: {
+      name: string;
+      description: string | null;
+      category: CourseCategory;
+      year_id: number | null;
+      term_id: number | null;
+    } = isAcademic
+      ? {
+          name: form.name,
+          description: form.description || null,
+          category: "academic",
+          year_id: Number(form.year_id),
+          term_id: form.term_id ? Number(form.term_id) : null,
+        }
+      : {
+          name: form.name,
+          description: form.description || null,
+          category: "learning_path",
+          year_id: null,
+          term_id: null,
+        };
 
     const { error } = editingId
       ? await supabase.from("courses").update(payload).eq("id", editingId)
@@ -331,6 +355,19 @@ function CoursesTab({
           {editingId ? "تعديل مادة" : "إضافة مادة جديدة"}
         </h2>
 
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-navy">نوع المحتوى</label>
+          <select
+            required
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value as CourseCategory })}
+            className={inputClasses}
+          >
+            <option value="academic">مادة أكاديمية</option>
+            <option value="learning_path">مسار تعلم برمجة</option>
+          </select>
+        </div>
+
         <input
           required
           placeholder="اسم المادة"
@@ -345,31 +382,36 @@ function CoursesTab({
           className={inputClasses}
           rows={3}
         />
-        <select
-          required
-          value={form.year_id}
-          onChange={(e) => handleYearChange(e.target.value)}
-          className={inputClasses}
-        >
-          {years.map((year) => (
-            <option key={year.id} value={year.id}>
-              {year.name}
-            </option>
-          ))}
-        </select>
-        <select
-          required
-          value={form.term_id}
-          onChange={(e) => setForm({ ...form, term_id: e.target.value })}
-          className={inputClasses}
-        >
-          {availableTerms.length === 0 && <option value="">لا توجد ترمين لهذه السنة</option>}
-          {availableTerms.map((term) => (
-            <option key={term.id} value={term.id}>
-              {term.name}
-            </option>
-          ))}
-        </select>
+
+        {isAcademic && (
+          <>
+            <select
+              required
+              value={form.year_id}
+              onChange={(e) => handleYearChange(e.target.value)}
+              className={inputClasses}
+            >
+              {years.map((year) => (
+                <option key={year.id} value={year.id}>
+                  {year.name}
+                </option>
+              ))}
+            </select>
+            <select
+              required
+              value={form.term_id}
+              onChange={(e) => setForm({ ...form, term_id: e.target.value })}
+              className={inputClasses}
+            >
+              {availableTerms.length === 0 && <option value="">لا توجد ترمين لهذه السنة</option>}
+              {availableTerms.map((term) => (
+                <option key={term.id} value={term.id}>
+                  {term.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -399,11 +441,17 @@ function CoursesTab({
           >
             <div>
               <p className="font-semibold text-navy">{course.name}</p>
-              <p className="text-sm text-navy/60">
-                {years.find((y) => y.id === course.year_id)?.name}
-                {course.term_id &&
-                  ` — ${terms.find((t) => t.id === course.term_id)?.name ?? ""}`}
-              </p>
+              {course.category === "learning_path" ? (
+                <span className="mt-1 inline-flex items-center rounded-full bg-turquoise/10 px-2 py-0.5 text-xs font-semibold text-turquoise">
+                  مسار تعلم برمجة
+                </span>
+              ) : (
+                <p className="text-sm text-navy/60">
+                  {years.find((y) => y.id === course.year_id)?.name}
+                  {course.term_id &&
+                    ` — ${terms.find((t) => t.id === course.term_id)?.name ?? ""}`}
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <button
