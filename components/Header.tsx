@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getDisplayName } from "@/lib/displayName";
 
 const baseNavLinks = [
   { href: "/", label: "الرئيسية" },
@@ -21,6 +22,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
   const supabase = createClient();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
@@ -34,12 +36,14 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, full_name")
           .eq("id", user.id)
           .single();
         setIsAdmin(profile?.role === "admin");
+        setDisplayName(getDisplayName(profile?.full_name, user.email));
       } else {
         setIsAdmin(false);
+        setDisplayName(null);
       }
     }
 
@@ -94,7 +98,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
 
           {email ? (
             <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-white/90">{email}</span>
+              <span className="text-sm font-medium text-white/90">{displayName}</span>
               <button
                 type="button"
                 onClick={handleLogout}
@@ -152,7 +156,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
 
           {email ? (
             <>
-              <span className="px-3 py-2 text-sm font-medium text-white/70">{email}</span>
+              <span className="px-3 py-2 text-sm font-medium text-white/70">{displayName}</span>
               <button
                 type="button"
                 onClick={handleLogout}

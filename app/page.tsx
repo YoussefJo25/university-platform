@@ -4,6 +4,7 @@ import GradientButton from "@/components/GradientButton";
 import { createClient } from "@/lib/supabase/server";
 import { getSiteSettings } from "@/lib/siteSettings";
 import { getLeadershipMembers, ROLE_FALLBACK_TITLE, ROLE_ORDER } from "@/lib/leadership";
+import { getDisplayName } from "@/lib/displayName";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,15 @@ export default async function Home() {
   );
 
   let isAdmin = false;
+  let displayName = "";
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role")
+      .select("role, full_name")
       .eq("id", user.id)
       .single();
     isAdmin = profile?.role === "admin";
+    displayName = getDisplayName(profile?.full_name, user.email);
   }
 
   const cards = [
@@ -76,7 +79,7 @@ export default async function Home() {
       <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-20 text-center sm:px-6">
         <div className="mx-auto max-w-3xl">
           <h1 className="text-3xl font-extrabold text-white sm:text-5xl">
-            {user ? `أهلاً بيك يا ${user.email}` : settings.hero_title}
+            {user ? `أهلاً بيك يا ${displayName}` : settings.hero_title}
           </h1>
           <p className="mt-4 text-base text-white/90 sm:text-lg">{settings.hero_subtitle}</p>
           <div className="mt-8 flex justify-center">
