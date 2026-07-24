@@ -35,6 +35,12 @@ type VideoItem = {
   embedUrl: string | null;
 };
 
+type PlaylistGroup = {
+  id: number;
+  title: string;
+  videos: VideoItem[];
+};
+
 async function expandPlaylistRow(row: PlaylistRow): Promise<VideoItem[]> {
   const playlistId = extractPlaylistId(row.youtube_url);
 
@@ -96,7 +102,13 @@ export default async function CourseDetailPage({
 
   const books = (booksData ?? []) as BookRow[];
   const playlistRows = (playlistsData ?? []) as PlaylistRow[];
-  const videos = (await Promise.all(playlistRows.map(expandPlaylistRow))).flat();
+  const playlistGroups: PlaylistGroup[] = await Promise.all(
+    playlistRows.map(async (row) => ({
+      id: row.id,
+      title: row.title,
+      videos: await expandPlaylistRow(row),
+    }))
+  );
 
   return (
     <div className="flex flex-1 flex-col">
@@ -116,7 +128,7 @@ export default async function CourseDetailPage({
             الرجوع لمواد {course.years?.name ?? "السنة الدراسية"}
           </Link>
 
-          <CourseTabs description={course.description} books={books} videos={videos} />
+          <CourseTabs description={course.description} books={books} playlistGroups={playlistGroups} />
         </div>
       </section>
     </div>

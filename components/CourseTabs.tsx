@@ -15,10 +15,16 @@ type VideoItem = {
   embedUrl: string | null;
 };
 
+type PlaylistGroup = {
+  id: number;
+  title: string;
+  videos: VideoItem[];
+};
+
 type CourseTabsProps = {
   description: string | null;
   books: BookRow[];
-  videos: VideoItem[];
+  playlistGroups: PlaylistGroup[];
 };
 
 const tabs = [
@@ -29,7 +35,7 @@ const tabs = [
 
 type TabKey = (typeof tabs)[number]["key"];
 
-export default function CourseTabs({ description, books, videos }: CourseTabsProps) {
+export default function CourseTabs({ description, books, playlistGroups }: CourseTabsProps) {
   const [active, setActive] = useState<TabKey>("overview");
 
   return (
@@ -98,10 +104,10 @@ export default function CourseTabs({ description, books, videos }: CourseTabsPro
         {active === "videos" && (
           <div>
             <h2 className="text-lg font-bold text-navy">الفيديوهات</h2>
-            {videos.length === 0 ? (
+            {playlistGroups.length === 0 ? (
               <p className="mt-3 text-sm text-navy/60">لا توجد فيديوهات مضافة بعد</p>
             ) : (
-              <VideoPlayer videos={videos} />
+              <VideoPlayer playlistGroups={playlistGroups} />
             )}
           </div>
         )}
@@ -110,52 +116,83 @@ export default function CourseTabs({ description, books, videos }: CourseTabsPro
   );
 }
 
-function VideoPlayer({ videos }: { videos: VideoItem[] }) {
-  const [selectedId, setSelectedId] = useState(videos[0]?.id);
-  const selected = videos.find((v) => v.id === selectedId) ?? videos[0];
+function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
+  const [selectedGroupId, setSelectedGroupId] = useState(playlistGroups[0]?.id);
+  const selectedGroup = playlistGroups.find((g) => g.id === selectedGroupId) ?? playlistGroups[0];
+
+  const [selectedVideoId, setSelectedVideoId] = useState(selectedGroup.videos[0]?.id);
+  const selectedVideo =
+    selectedGroup.videos.find((v) => v.id === selectedVideoId) ?? selectedGroup.videos[0];
+
+  function handleSelectGroup(group: PlaylistGroup) {
+    setSelectedGroupId(group.id);
+    setSelectedVideoId(group.videos[0]?.id);
+  }
 
   return (
-    <div className="mt-4 flex flex-col gap-6 sm:flex-row-reverse">
-      <div className="flex-1">
-        {selected.embedUrl ? (
-          <div className="aspect-video w-full overflow-hidden rounded-xl border border-navy/10 shadow-sm">
-            <iframe
-              key={selected.id}
-              src={selected.embedUrl}
-              title={selected.title}
-              className="h-full w-full"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
-        ) : (
-          <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
-            الرابط غير صالح
-          </div>
-        )}
-        <p className="mt-3 font-semibold text-navy">{selected.title}</p>
-      </div>
-
-      {videos.length > 1 && (
-        <ul className="flex flex-col gap-2 sm:w-72 sm:shrink-0">
-          {videos.map((video) => (
-            <li key={video.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(video.id)}
-                aria-pressed={video.id === selected.id}
-                className={`w-full rounded-xl px-4 py-3 text-right text-sm font-medium transition-colors ${
-                  video.id === selected.id
-                    ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
-                    : "bg-navy/5 text-navy/80 hover:bg-navy/10"
-                }`}
-              >
-                {video.title}
-              </button>
-            </li>
+    <div className="mt-4">
+      {playlistGroups.length > 1 && (
+        <div className="mb-6 flex w-full flex-wrap gap-1 rounded-full border border-navy/10 bg-navy/5 p-1">
+          {playlistGroups.map((group) => (
+            <button
+              key={group.id}
+              type="button"
+              onClick={() => handleSelectGroup(group)}
+              aria-pressed={group.id === selectedGroup.id}
+              className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
+                group.id === selectedGroup.id
+                  ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
+                  : "text-navy/70 hover:text-navy"
+              }`}
+            >
+              {group.title}
+            </button>
           ))}
-        </ul>
+        </div>
       )}
+
+      <div className="flex flex-col gap-6 sm:flex-row-reverse">
+        <div className="flex-1">
+          {selectedVideo.embedUrl ? (
+            <div className="aspect-video w-full overflow-hidden rounded-xl border border-navy/10 shadow-sm">
+              <iframe
+                key={selectedVideo.id}
+                src={selectedVideo.embedUrl}
+                title={selectedVideo.title}
+                className="h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
+              الرابط غير صالح
+            </div>
+          )}
+          <p className="mt-3 font-semibold text-navy">{selectedVideo.title}</p>
+        </div>
+
+        {selectedGroup.videos.length > 1 && (
+          <ul className="flex flex-col gap-2 sm:w-72 sm:shrink-0">
+            {selectedGroup.videos.map((video) => (
+              <li key={video.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedVideoId(video.id)}
+                  aria-pressed={video.id === selectedVideo.id}
+                  className={`w-full rounded-xl px-4 py-3 text-right text-sm font-medium transition-colors ${
+                    video.id === selectedVideo.id
+                      ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
+                      : "bg-navy/5 text-navy/80 hover:bg-navy/10"
+                  }`}
+                >
+                  {video.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
