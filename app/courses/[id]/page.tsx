@@ -53,6 +53,7 @@ type PlaylistRow = {
   title: string;
   youtube_url: string;
   order_index: number;
+  group_name: string | null;
 };
 
 type VideoItem = {
@@ -64,8 +65,35 @@ type VideoItem = {
 type PlaylistGroup = {
   id: number;
   title: string;
+  group_name: string | null;
   videos: VideoItem[];
 };
+
+async function fetchPlaylistRows(courseId: string): Promise<PlaylistRow[]> {
+  const full = await supabase
+    .from("playlists")
+    .select("id, title, youtube_url, order_index, group_name")
+    .eq("course_id", courseId)
+    .order("order_index")
+    .order("title");
+
+  if (!full.error) {
+    return (full.data ?? []) as PlaylistRow[];
+  }
+
+  // group_name ممكن يكون لسه معملوش migration (playlist_groups_setup.sql)
+  const fallback = await supabase
+    .from("playlists")
+    .select("id, title, youtube_url, order_index")
+    .eq("course_id", courseId)
+    .order("order_index")
+    .order("title");
+
+  return ((fallback.data ?? []) as Omit<PlaylistRow, "group_name">[]).map((row) => ({
+    ...row,
+    group_name: null,
+  }));
+}
 
 async function expandPlaylistRow(row: PlaylistRow): Promise<VideoItem[]> {
   const playlistId = extractPlaylistId(row.youtube_url);
@@ -160,7 +188,7 @@ export default async function CourseDetailPage({
   let playlistGroups: PlaylistGroup[] = [];
 
   if (!hasChildren) {
-    const [{ data: booksData }, { data: folderRows }, { data: playlistsData }] = await Promise.all([
+    const [{ data: booksData }, { data: folderRows }, playlistRows] = await Promise.all([
       supabase
         .from("books")
         .select("id, title, author, file_url, folder_id")
@@ -172,12 +200,7 @@ export default async function CourseDetailPage({
         .eq("course_id", id)
         .order("order_index")
         .order("name"),
-      supabase
-        .from("playlists")
-        .select("id, title, youtube_url, order_index")
-        .eq("course_id", id)
-        .order("order_index")
-        .order("title"),
+      fetchPlaylistRows(id),
     ]);
 
     const books = (booksData ?? []) as BookRow[];
@@ -188,11 +211,11 @@ export default async function CourseDetailPage({
       books: books.filter((book) => book.folder_id === folder.id),
     }));
     unfiledBooks = books.filter((book) => !book.folder_id);
-    const playlistRows = (playlistsData ?? []) as PlaylistRow[];
     playlistGroups = await Promise.all(
       playlistRows.map(async (row) => ({
         id: row.id,
         title: row.title,
+        group_name: row.group_name,
         videos: await expandPlaylistRow(row),
       }))
     );

@@ -52,6 +52,7 @@ type Playlist = {
   youtube_url: string;
   course_id: number;
   order_index: number;
+  group_name: string | null;
 };
 
 type TabKey = "courses" | "books" | "playlists" | "settings" | "leadership";
@@ -107,6 +108,33 @@ export default function AdminPage() {
     return full;
   }
 
+  async function fetchPlaylists() {
+    const full = await supabase
+      .from("playlists")
+      .select("id, title, youtube_url, course_id, order_index, group_name")
+      .order("order_index")
+      .order("title");
+
+    if (!full.error) return full;
+
+    // group_name ممكن يكون لسه معملوش migration (playlist_groups_setup.sql)
+    // نرجع لاستعلام بدونه عشان باقي التاب مايتوقفش بالكامل
+    const withoutGroupName = await supabase
+      .from("playlists")
+      .select("id, title, youtube_url, course_id, order_index")
+      .order("order_index")
+      .order("title");
+
+    if (!withoutGroupName.error) {
+      return {
+        ...withoutGroupName,
+        data: (withoutGroupName.data ?? []).map((p) => ({ ...p, group_name: null })),
+      };
+    }
+
+    return full;
+  }
+
   async function loadAll() {
     setLoading(true);
     setError(null);
@@ -133,11 +161,7 @@ export default function AdminPage() {
         .select("id, course_id, name, order_index")
         .order("order_index")
         .order("name"),
-      supabase
-        .from("playlists")
-        .select("id, title, youtube_url, course_id, order_index")
-        .order("order_index")
-        .order("title"),
+      fetchPlaylists(),
       supabase.from("site_settings").select("key, value"),
       supabase
         .from("leadership_members")
@@ -985,11 +1009,13 @@ function PlaylistsTab({
     youtube_url: string;
     course_id: number | string;
     order_index: number | string;
+    group_name: string;
   } = {
     title: "",
     youtube_url: "",
     course_id: courses[0]?.id ?? "",
     order_index: 0,
+    group_name: "",
   };
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
@@ -1002,6 +1028,7 @@ function PlaylistsTab({
       youtube_url: playlist.youtube_url,
       course_id: playlist.course_id,
       order_index: playlist.order_index,
+      group_name: playlist.group_name ?? "",
     });
   }
 
@@ -1019,6 +1046,7 @@ function PlaylistsTab({
       youtube_url: form.youtube_url,
       course_id: Number(form.course_id),
       order_index: Number(form.order_index) || 0,
+      group_name: form.group_name.trim() || null,
     };
 
     const { error } = editingId
@@ -1093,6 +1121,22 @@ function PlaylistsTab({
             className={inputClasses}
           />
         </div>
+        <div>
+          <label htmlFor="group_name" className="mb-1.5 block text-sm font-medium text-navy">
+            اسم المصدر/القناة (اختياري)
+          </label>
+          <input
+            id="group_name"
+            placeholder="مثلاً: أحمد عادل"
+            value={form.group_name}
+            onChange={(e) => setForm({ ...form, group_name: e.target.value })}
+            className={inputClasses}
+          />
+          <p className="mt-1.5 text-xs text-navy/50">
+            لو كتبت نفس الاسم في أكتر من قايمة تشغيل، هيتجمعوا تحت اسم واحد جواه سهم في صفحة
+            المادة.
+          </p>
+        </div>
 
         <div className="flex gap-3">
           <button
@@ -1124,6 +1168,11 @@ function PlaylistsTab({
               <p className="font-semibold text-navy">{playlist.title}</p>
               <p className="text-sm text-navy/60">
                 {courses.find((c) => c.id === playlist.course_id)?.name}
+                {playlist.group_name && (
+                  <span className="mr-2 inline-flex items-center rounded-full bg-turquoise/10 px-2 py-0.5 text-xs font-semibold text-turquoise">
+                    {playlist.group_name}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center gap-3">

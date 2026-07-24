@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type BookRow = {
   id: number;
@@ -24,8 +24,35 @@ type VideoItem = {
 type PlaylistGroup = {
   id: number;
   title: string;
+  group_name: string | null;
   videos: VideoItem[];
 };
+
+type SourceGroup = {
+  key: string;
+  members: PlaylistGroup[];
+};
+
+function buildSourceGroups(playlistGroups: PlaylistGroup[]): SourceGroup[] {
+  const sourceGroups: SourceGroup[] = [];
+  const bySourceName = new Map<string, SourceGroup>();
+
+  for (const playlistGroup of playlistGroups) {
+    if (playlistGroup.group_name) {
+      let sourceGroup = bySourceName.get(playlistGroup.group_name);
+      if (!sourceGroup) {
+        sourceGroup = { key: `source-${playlistGroup.group_name}`, members: [] };
+        bySourceName.set(playlistGroup.group_name, sourceGroup);
+        sourceGroups.push(sourceGroup);
+      }
+      sourceGroup.members.push(playlistGroup);
+    } else {
+      sourceGroups.push({ key: `single-${playlistGroup.id}`, members: [playlistGroup] });
+    }
+  }
+
+  return sourceGroups;
+}
 
 type CourseTabsProps = {
   description: string | null;
@@ -125,6 +152,8 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
   const selectedVideo =
     selectedGroup.videos.find((v) => v.id === selectedVideoId) ?? selectedGroup.videos[0];
 
+  const sourceGroups = buildSourceGroups(playlistGroups);
+
   function handleSelectGroup(group: PlaylistGroup) {
     setSelectedGroupId(group.id);
     setSelectedVideoId(group.videos[0]?.id);
@@ -134,21 +163,30 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
     <div className="mt-4">
       {playlistGroups.length > 1 && (
         <div className="mb-6 flex w-full flex-wrap gap-1 rounded-full border border-navy/10 bg-navy/5 p-1">
-          {playlistGroups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              onClick={() => handleSelectGroup(group)}
-              aria-pressed={group.id === selectedGroup.id}
-              className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
-                group.id === selectedGroup.id
-                  ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
-                  : "text-navy/70 hover:text-navy"
-              }`}
-            >
-              {group.title}
-            </button>
-          ))}
+          {sourceGroups.map((sourceGroup) =>
+            sourceGroup.members.length > 1 ? (
+              <SourceGroupSelector
+                key={sourceGroup.key}
+                sourceGroup={sourceGroup}
+                selectedGroupId={selectedGroup.id}
+                onSelect={handleSelectGroup}
+              />
+            ) : (
+              <button
+                key={sourceGroup.key}
+                type="button"
+                onClick={() => handleSelectGroup(sourceGroup.members[0])}
+                aria-pressed={sourceGroup.members[0].id === selectedGroup.id}
+                className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
+                  sourceGroup.members[0].id === selectedGroup.id
+                    ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
+                    : "text-navy/70 hover:text-navy"
+                }`}
+              >
+                {sourceGroup.members[0].title}
+              </button>
+            )
+          )}
         </div>
       )}
 
@@ -194,6 +232,81 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+function SourceGroupSelector({
+  sourceGroup,
+  selectedGroupId,
+  onSelect,
+}: {
+  sourceGroup: SourceGroup;
+  selectedGroupId: number;
+  onSelect: (group: PlaylistGroup) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isActive = sourceGroup.members.some((member) => member.id === selectedGroupId);
+  const groupLabel = sourceGroup.members[0].group_name ?? sourceGroup.members[0].title;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative flex-1">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        className={`flex w-full items-center justify-center gap-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
+          isActive
+            ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
+            : "text-navy/70 hover:text-navy"
+        }`}
+      >
+        {groupLabel}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2}
+          stroke="currentColor"
+          className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-10 mt-2 w-56 overflow-hidden rounded-xl border border-navy/10 bg-white shadow-lg">
+          {sourceGroup.members.map((member) => (
+            <button
+              key={member.id}
+              type="button"
+              onClick={() => {
+                onSelect(member);
+                setOpen(false);
+              }}
+              className={`block w-full px-4 py-2.5 text-right text-sm transition-colors ${
+                member.id === selectedGroupId
+                  ? "bg-navy/5 font-semibold text-navy"
+                  : "text-navy/70 hover:bg-navy/5"
+              }`}
+            >
+              {member.title}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
