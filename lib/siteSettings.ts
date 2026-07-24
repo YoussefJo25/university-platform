@@ -11,6 +11,7 @@ export type SiteSettings = {
   footer_text: string;
   about_university_text: string;
   founding_year: string;
+  college_building_photo_url: string;
 };
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
@@ -26,6 +27,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   footer_text: "جميع الحقوق محفوظة لجامعة المنيا الاهلية",
   about_university_text: "",
   founding_year: "",
+  college_building_photo_url: "",
 };
 
 type SettingRow = { key: string; value: string | null };

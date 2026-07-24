@@ -1286,6 +1286,8 @@ function LeadershipTab({
   const [memberFiles, setMemberFiles] = useState<Partial<Record<RoleKey, File>>>({});
   const [aboutText, setAboutText] = useState(settings.about_university_text);
   const [foundingYear, setFoundingYear] = useState(settings.founding_year);
+  const [buildingPhotoUrl, setBuildingPhotoUrl] = useState(settings.college_building_photo_url);
+  const [buildingFile, setBuildingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState(false);
@@ -1297,6 +1299,7 @@ function LeadershipTab({
   useEffect(() => {
     setAboutText(settings.about_university_text);
     setFoundingYear(settings.founding_year);
+    setBuildingPhotoUrl(settings.college_building_photo_url);
   }, [settings]);
 
   function updateMemberField(roleKey: RoleKey, field: keyof MemberFormState, value: string) {
@@ -1328,6 +1331,32 @@ function LeadershipTab({
     }
 
     setMemberFiles((prev) => ({ ...prev, [roleKey]: selected }));
+  }
+
+  function handleBuildingPhotoChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setFormError(null);
+    setSuccessMessage(false);
+
+    if (!selected) {
+      setBuildingFile(null);
+      return;
+    }
+
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedTypes.includes(selected.type)) {
+      setFormError("صورة المبنى لازم تكون بصيغة PNG أو JPEG أو WebP.");
+      event.target.value = "";
+      return;
+    }
+
+    if (selected.size > MAX_LOGO_FILE_SIZE) {
+      setFormError("حجم صورة المبنى أكبر من الحد المسموح به (2 ميجابايت).");
+      event.target.value = "";
+      return;
+    }
+
+    setBuildingFile(selected);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -1389,10 +1418,29 @@ function LeadershipTab({
 
     const failedMemberUpdate = memberUpdates.find((res) => res.error);
 
+    let finalBuildingPhotoUrl = buildingPhotoUrl;
+
+    if (buildingFile) {
+      const path = `leadership/building/${Date.now()}-${sanitizeFileName(buildingFile.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("site-assets")
+        .upload(path, buildingFile);
+
+      if (uploadError) {
+        setSaving(false);
+        setFormError(`فشل رفع صورة المبنى: ${uploadError.message}`);
+        return;
+      }
+
+      finalBuildingPhotoUrl = supabase.storage.from("site-assets").getPublicUrl(path).data
+        .publicUrl;
+    }
+
     const { error: settingsError } = await supabase.from("site_settings").upsert(
       [
         { key: "about_university_text", value: aboutText },
         { key: "founding_year", value: foundingYear },
+        { key: "college_building_photo_url", value: finalBuildingPhotoUrl },
       ],
       { onConflict: "key" }
     );
@@ -1407,6 +1455,7 @@ function LeadershipTab({
     }
 
     setMemberFiles({});
+    setBuildingFile(null);
     setSuccessMessage(true);
     onChange();
   }
@@ -1510,6 +1559,33 @@ function LeadershipTab({
               }}
               className={inputClasses}
             />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              صورة مبنى الكلية (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
+            </label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleBuildingPhotoChange}
+              className={inputClasses}
+            />
+            {buildingPhotoUrl && !buildingFile && (
+              <p className="mt-2 text-sm text-navy/60">
+                الصورة الحالية:{" "}
+                <a
+                  href={buildingPhotoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-turquoise hover:underline"
+                >
+                  عرض
+                </a>
+              </p>
+            )}
+            {buildingFile && (
+              <p className="mt-2 text-sm text-navy/60">الصورة المختارة: {buildingFile.name}</p>
+            )}
           </div>
         </div>
       </div>

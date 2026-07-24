@@ -150,14 +150,28 @@ export default async function Home() {
           </div>
 
           {settings.about_university_text && (
-            <div className="mt-10 rounded-2xl border border-navy/10 bg-white p-6 shadow-sm sm:p-8">
-              <h3 className="text-lg font-bold text-navy">
-                نبذة عن الجامعة
-                {settings.founding_year && ` — تأسست ${settings.founding_year}`}
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-navy/70">
-                {settings.about_university_text}
-              </p>
+            <div className="mt-10 overflow-hidden rounded-2xl border border-navy/10 bg-white shadow-sm">
+              <div className="flex flex-col sm:flex-row">
+                {settings.college_building_photo_url && (
+                  <div className="relative h-56 w-full shrink-0 sm:h-72 sm:w-1/2">
+                    <Image
+                      src={settings.college_building_photo_url}
+                      alt="مبنى الكلية"
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col justify-center p-6 sm:p-8">
+                  <h3 className="text-lg font-bold text-navy">
+                    نبذة عن الجامعة
+                    {settings.founding_year && ` — تأسست ${settings.founding_year}`}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-navy/70">
+                    {settings.about_university_text}
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
