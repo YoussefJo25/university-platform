@@ -26,17 +26,30 @@ export default function Home() {
       <section className="bg-white px-4 py-16 sm:px-6">
         <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {[
-            { title: "السنين الدراسية", desc: "تصفح المقررات والمحتوى الخاص بكل سنة دراسية" },
-            { title: "تسجيل الدخول", desc: "ادخل إلى حسابك للوصول إلى خدماتك الأكاديمية" },
-            { title: "الدعم الفني", desc: "تواصل معنا لأي استفسار أو مشكلة تقنية" },
+            {
+              title: "السنين الدراسية",
+              desc: "تصفح المقررات والمحتوى الخاص بكل سنة دراسية",
+              href: "/academic-years",
+            },
+            {
+              title: "تسجيل الدخول",
+              desc: "ادخل إلى حسابك للوصول إلى خدماتك الأكاديمية",
+              href: "/login",
+            },
+            {
+              title: "الدعم الفني",
+              desc: "تواصل معنا لأي استفسار أو مشكلة تقنية",
+              href: "/support",
+            },
           ].map((item) => (
-            <div
+            <Link
               key={item.title}
-              className="rounded-2xl border border-navy/10 bg-white p-6 shadow-sm transition-shadow hover:shadow-md"
+              href={item.href}
+              className="rounded-2xl border border-navy/10 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
             >
               <h2 className="text-lg font-bold text-navy">{item.title}</h2>
               <p className="mt-2 text-sm text-navy/70">{item.desc}</p>
-            </div>
+            </Link>
           ))}
         </div>
 
