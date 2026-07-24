@@ -6,7 +6,13 @@ import { createClient } from "@/lib/supabase/client";
 type Year = { id: number; name: string; year_number: number };
 type Course = { id: number; name: string; description: string | null; year_id: number };
 type Book = { id: number; title: string; author: string | null; file_url: string | null; course_id: number };
-type Playlist = { id: number; title: string; youtube_url: string; course_id: number };
+type Playlist = {
+  id: number;
+  title: string;
+  youtube_url: string;
+  course_id: number;
+  order_index: number;
+};
 
 type TabKey = "courses" | "books" | "playlists";
 
@@ -38,7 +44,11 @@ export default function AdminPage() {
       supabase.from("years").select("id, name, year_number").order("year_number"),
       supabase.from("courses").select("id, name, description, year_id").order("name"),
       supabase.from("books").select("id, title, author, file_url, course_id").order("title"),
-      supabase.from("playlists").select("id, title, youtube_url, course_id").order("title"),
+      supabase
+        .from("playlists")
+        .select("id, title, youtube_url, course_id, order_index")
+        .order("order_index")
+        .order("title"),
     ]);
 
     if (yearsRes.error || coursesRes.error || booksRes.error || playlistsRes.error) {
@@ -438,10 +448,16 @@ function PlaylistsTab({
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
-  const empty: { title: string; youtube_url: string; course_id: number | string } = {
+  const empty: {
+    title: string;
+    youtube_url: string;
+    course_id: number | string;
+    order_index: number | string;
+  } = {
     title: "",
     youtube_url: "",
     course_id: courses[0]?.id ?? "",
+    order_index: 0,
   };
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
@@ -453,6 +469,7 @@ function PlaylistsTab({
       title: playlist.title,
       youtube_url: playlist.youtube_url,
       course_id: playlist.course_id,
+      order_index: playlist.order_index,
     });
   }
 
@@ -469,6 +486,7 @@ function PlaylistsTab({
       title: form.title,
       youtube_url: form.youtube_url,
       course_id: Number(form.course_id),
+      order_index: Number(form.order_index) || 0,
     };
 
     const { error } = editingId
@@ -486,6 +504,11 @@ function PlaylistsTab({
   async function handleDelete(id: number) {
     if (!confirm("هل أنت متأكد من حذف قائمة التشغيل؟")) return;
     await supabase.from("playlists").delete().eq("id", id);
+    onChange();
+  }
+
+  async function handleReorder(id: number, newOrder: number) {
+    await supabase.from("playlists").update({ order_index: newOrder }).eq("id", id);
     onChange();
   }
 
@@ -525,6 +548,19 @@ function PlaylistsTab({
             </option>
           ))}
         </select>
+        <div>
+          <label htmlFor="order_index" className="mb-1.5 block text-sm font-medium text-navy">
+            ترتيب العرض (اختياري)
+          </label>
+          <input
+            id="order_index"
+            type="number"
+            placeholder="0"
+            value={form.order_index}
+            onChange={(e) => setForm({ ...form, order_index: e.target.value })}
+            className={inputClasses}
+          />
+        </div>
 
         <div className="flex gap-3">
           <button
@@ -558,7 +594,19 @@ function PlaylistsTab({
                 {courses.find((c) => c.id === playlist.course_id)?.name}
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-navy/60">
+                الترتيب
+                <input
+                  type="number"
+                  defaultValue={playlist.order_index}
+                  onBlur={(e) => {
+                    const value = Number(e.target.value) || 0;
+                    if (value !== playlist.order_index) handleReorder(playlist.id, value);
+                  }}
+                  className="w-16 rounded-lg border border-navy/15 px-2 py-1 text-sm text-navy outline-none focus:border-turquoise"
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => startEdit(playlist)}

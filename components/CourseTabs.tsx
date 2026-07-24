@@ -14,6 +14,7 @@ type PlaylistRow = {
   id: number;
   title: string;
   youtube_url: string;
+  order_index: number;
 };
 
 type CourseTabsProps = {
@@ -102,35 +103,62 @@ export default function CourseTabs({ description, books, playlists }: CourseTabs
             {playlists.length === 0 ? (
               <p className="mt-3 text-sm text-navy/60">لا توجد فيديوهات مضافة بعد</p>
             ) : (
-              <div className="mt-4 flex flex-col gap-8">
-                {playlists.map((playlist) => {
-                  const embedUrl = getYoutubeEmbedUrl(playlist.youtube_url);
-                  return (
-                    <div key={playlist.id}>
-                      <p className="mb-3 font-semibold text-navy">{playlist.title}</p>
-                      {embedUrl ? (
-                        <div className="aspect-video w-full overflow-hidden rounded-xl border border-navy/10 shadow-sm">
-                          <iframe
-                            src={embedUrl}
-                            title={playlist.title}
-                            className="h-full w-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                          />
-                        </div>
-                      ) : (
-                        <p className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
-                          الرابط غير صالح
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <VideoPlayer playlists={playlists} />
             )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function VideoPlayer({ playlists }: { playlists: PlaylistRow[] }) {
+  const [selectedId, setSelectedId] = useState(playlists[0]?.id);
+  const selected = playlists.find((p) => p.id === selectedId) ?? playlists[0];
+  const embedUrl = getYoutubeEmbedUrl(selected.youtube_url);
+
+  return (
+    <div className="mt-4 flex flex-col gap-6 sm:flex-row-reverse">
+      <div className="flex-1">
+        {embedUrl ? (
+          <div className="aspect-video w-full overflow-hidden rounded-xl border border-navy/10 shadow-sm">
+            <iframe
+              key={selected.id}
+              src={embedUrl}
+              title={selected.title}
+              className="h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          </div>
+        ) : (
+          <div className="flex aspect-video w-full items-center justify-center rounded-xl border border-red-100 bg-red-50 p-4 text-sm text-red-600">
+            الرابط غير صالح
+          </div>
+        )}
+        <p className="mt-3 font-semibold text-navy">{selected.title}</p>
+      </div>
+
+      {playlists.length > 1 && (
+        <ul className="flex flex-col gap-2 sm:w-72 sm:shrink-0">
+          {playlists.map((playlist) => (
+            <li key={playlist.id}>
+              <button
+                type="button"
+                onClick={() => setSelectedId(playlist.id)}
+                aria-pressed={playlist.id === selected.id}
+                className={`w-full rounded-xl px-4 py-3 text-right text-sm font-medium transition-colors ${
+                  playlist.id === selected.id
+                    ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
+                    : "bg-navy/5 text-navy/80 hover:bg-navy/10"
+                }`}
+              >
+                {playlist.title}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

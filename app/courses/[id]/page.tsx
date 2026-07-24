@@ -24,6 +24,7 @@ type PlaylistRow = {
   id: number;
   title: string;
   youtube_url: string;
+  order_index: number;
 };
 
 export default async function CourseDetailPage({
@@ -53,8 +54,9 @@ export default async function CourseDetailPage({
       .order("title"),
     supabase
       .from("playlists")
-      .select("id, title, youtube_url")
+      .select("id, title, youtube_url, order_index")
       .eq("course_id", id)
+      .order("order_index")
       .order("title"),
   ]);
 
