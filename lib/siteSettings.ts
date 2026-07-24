@@ -12,6 +12,7 @@ export type SiteSettings = {
   about_university_text: string;
   founding_year: string;
   college_building_photo_url: string;
+  whatsapp_number: string;
 };
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
@@ -28,6 +29,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   about_university_text: "",
   founding_year: "",
   college_building_photo_url: "",
+  whatsapp_number: "",
 };
 
 type SettingRow = { key: string; value: string | null };

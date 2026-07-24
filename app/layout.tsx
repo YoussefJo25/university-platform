@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import WhatsAppButton from "@/components/WhatsAppButton";
 import { getSiteSettings } from "@/lib/siteSettings";
 import "./globals.css";
 
@@ -28,6 +29,7 @@ export default async function RootLayout({
         <Header universityName={settings.university_name} logoUrl={settings.logo_url} />
         <main className="flex flex-1 flex-col">{children}</main>
         <Footer footerText={settings.footer_text} />
+        <WhatsAppButton whatsappNumber={settings.whatsapp_number} />
       </body>
     </html>
   );

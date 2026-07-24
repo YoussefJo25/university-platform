@@ -1218,6 +1218,20 @@ function SettingsTab({
               className={inputClasses}
             />
           </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">
+              رقم الواتساب (اختياري)
+            </label>
+            <input
+              value={form.whatsapp_number}
+              onChange={(e) => updateField("whatsapp_number", e.target.value.replace(/\D/g, ""))}
+              className={inputClasses}
+              placeholder="201012345678"
+            />
+            <p className="mt-1.5 text-xs text-navy/50">
+              أدخل الرقم بالصيغة الدولية بدون + أو مسافات، مثال: 201012345678
+            </p>
+          </div>
         </div>
       </div>
 
