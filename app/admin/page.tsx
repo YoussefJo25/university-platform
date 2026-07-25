@@ -8,6 +8,7 @@ import {
   type SiteSettings,
 } from "@/lib/siteSettings";
 import { ROLE_FALLBACK_TITLE, ROLE_ORDER, type LeadershipMember, type RoleKey } from "@/lib/leadership";
+import { ROLE_LABELS, type Role } from "@/lib/roles";
 
 const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -68,11 +69,43 @@ type Playlist = {
   order_index: number;
   group_name: string | null;
 };
+type ProfileRow = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  phone: string | null;
+  role: Role;
+  created_at: string;
+};
+type YearManagerRow = {
+  id: number;
+  profile_id: string;
+  year_id: number;
+  years: {
+    id: number;
+    name: string;
+    year_number: number;
+    university_id: number;
+    universities: { name: string } | null;
+  } | null;
+};
+type ManagedYear = { id: number; name: string; universityName: string };
 
-type TabKey = "universities" | "courses" | "books" | "playlists" | "settings" | "leadership";
+// التابات دي محصورة على super_admin بس (تختفي تمامًا من واجهة year_admin)
+const SUPER_ADMIN_ONLY_TABS: TabKey[] = ["universities", "users", "settings", "leadership"];
+
+type TabKey =
+  | "universities"
+  | "users"
+  | "courses"
+  | "books"
+  | "playlists"
+  | "settings"
+  | "leadership";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "universities", label: "الجامعات" },
+  { key: "users", label: "المستخدمين" },
   { key: "courses", label: "المواد" },
   { key: "books", label: "الكتب" },
   { key: "playlists", label: "الفيديوهات" },
@@ -96,6 +129,10 @@ export default function AdminPage() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
   const [leadershipMembers, setLeadershipMembers] = useState<LeadershipMember[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+  const [yearManagers, setYearManagers] = useState<YearManagerRow[]>([]);
+  const [activeManagedYearId, setActiveManagedYearId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -156,6 +193,7 @@ export default function AdminPage() {
     setError(null);
 
     const [
+      userRes,
       universitiesRes,
       yearsRes,
       termsRes,
@@ -165,7 +203,10 @@ export default function AdminPage() {
       playlistsRes,
       settingsRes,
       leadershipRes,
+      profilesRes,
+      yearManagersRes,
     ] = await Promise.all([
+      supabase.auth.getUser(),
       supabase
         .from("universities")
         .select("id, name, logo_url, description, order_index")
@@ -188,7 +229,18 @@ export default function AdminPage() {
         .from("leadership_members")
         .select("id, role_key, name, title, bio, photo_url, order_index")
         .order("order_index"),
+      // profiles/year_managers محكومين بـ RLS: year_admin/student بيرجعله
+      // صفوفه هو بس، super_admin بيرجعله كل الصفوف — نفس الاستعلام للكل.
+      supabase
+        .from("profiles")
+        .select("id, email, full_name, phone, role, created_at")
+        .order("created_at"),
+      supabase
+        .from("year_managers")
+        .select("id, profile_id, year_id, years(id, name, year_number, university_id, universities(name))"),
     ]);
+
+    setCurrentUserId(userRes.data.user?.id ?? null);
 
     if (
       universitiesRes.error ||
@@ -222,6 +274,20 @@ export default function AdminPage() {
       setLeadershipMembers((leadershipRes.data ?? []) as LeadershipMember[]);
     }
 
+    if (!profilesRes.error) {
+      setProfiles((profilesRes.data ?? []) as ProfileRow[]);
+    }
+
+    if (!yearManagersRes.error) {
+      const rows = (yearManagersRes.data ?? []) as unknown as YearManagerRow[];
+      setYearManagers(rows);
+      setActiveManagedYearId((prev) => {
+        if (prev && rows.some((row) => row.year_id === prev)) return prev;
+        const mine = rows.filter((row) => row.profile_id === userRes.data.user?.id);
+        return mine[0]?.year_id ?? null;
+      });
+    }
+
     setLoading(false);
   }
 
@@ -229,6 +295,49 @@ export default function AdminPage() {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const viewerRole = profiles.find((p) => p.id === currentUserId)?.role ?? null;
+  const isSuperAdmin = viewerRole === "super_admin";
+  const isYearAdmin = viewerRole === "year_admin";
+
+  const managedYears: ManagedYear[] = yearManagers
+    .filter((row) => row.profile_id === currentUserId && row.years)
+    .map((row) => ({
+      id: row.years!.id,
+      name: row.years!.name,
+      universityName: row.years!.universities?.name ?? "",
+    }));
+
+  const visibleTabs = isSuperAdmin
+    ? tabs
+    : tabs.filter((tab) => !SUPER_ADMIN_ONLY_TABS.includes(tab.key));
+
+  useEffect(() => {
+    if (viewerRole === null) return;
+    if (!visibleTabs.some((tab) => tab.key === activeTab)) {
+      setActiveTab(visibleTabs[0]?.key ?? "courses");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewerRole, activeManagedYearId]);
+
+  // نطاق أدمن الفرقة: بس الفرقة اللي مختارها حاليًا من الـ switcher (لو
+  // بيدير أكتر من فرقة). super_admin مالوش أي تقييد (arrays كاملة زي ما هي).
+  const scopedYear = isYearAdmin ? years.find((y) => y.id === activeManagedYearId) ?? null : null;
+  const visibleUniversities = isYearAdmin
+    ? universities.filter((u) => u.id === scopedYear?.university_id)
+    : universities;
+  const visibleYears = isYearAdmin ? (scopedYear ? [scopedYear] : []) : years;
+  const visibleCourses = isYearAdmin
+    ? courses.filter((c) => c.year_id === activeManagedYearId)
+    : courses;
+  const visibleCourseIds = new Set(visibleCourses.map((c) => c.id));
+  const visibleFolders = isYearAdmin
+    ? folders.filter((f) => visibleCourseIds.has(f.course_id))
+    : folders;
+  const visibleBooks = isYearAdmin ? books.filter((b) => visibleCourseIds.has(b.course_id)) : books;
+  const visiblePlaylists = isYearAdmin
+    ? playlists.filter((p) => visibleCourseIds.has(p.course_id))
+    : playlists;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -241,8 +350,32 @@ export default function AdminPage() {
 
       <section className="flex-1 bg-white px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-4xl">
+          {isYearAdmin && managedYears.length > 0 && (
+            <div className="mb-4 flex flex-col gap-2 rounded-xl border border-turquoise/30 bg-turquoise/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <span className="font-medium text-navy">
+                بتدير حاليًا:{" "}
+                {managedYears.find((y) => y.id === activeManagedYearId)?.universityName}
+                {" — "}
+                {managedYears.find((y) => y.id === activeManagedYearId)?.name}
+              </span>
+              {managedYears.length > 1 && (
+                <select
+                  value={activeManagedYearId ?? ""}
+                  onChange={(e) => setActiveManagedYearId(Number(e.target.value))}
+                  className="w-full rounded-lg border border-navy/15 px-3 py-1.5 text-sm text-navy outline-none focus:border-turquoise sm:w-auto"
+                >
+                  {managedYears.map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.universityName} — {y.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           <div className="flex w-full rounded-full border border-navy/10 bg-navy/5 p-1">
-            {tabs.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
@@ -272,29 +405,40 @@ export default function AdminPage() {
                   onChange={loadAll}
                 />
               )}
-              {activeTab === "courses" && (
-                <CoursesTab
+              {activeTab === "users" && (
+                <UsersTab
+                  profiles={profiles}
+                  yearManagers={yearManagers}
                   universities={universities}
                   years={years}
+                  supabase={supabase}
+                  onChange={loadAll}
+                />
+              )}
+              {activeTab === "courses" && (
+                <CoursesTab
+                  universities={visibleUniversities}
+                  years={visibleYears}
                   terms={terms}
-                  courses={courses}
+                  courses={visibleCourses}
+                  restrictToAcademic={isYearAdmin}
                   supabase={supabase}
                   onChange={loadAll}
                 />
               )}
               {activeTab === "books" && (
                 <BooksTab
-                  courses={courses}
-                  books={books}
-                  folders={folders}
+                  courses={visibleCourses}
+                  books={visibleBooks}
+                  folders={visibleFolders}
                   supabase={supabase}
                   onChange={loadAll}
                 />
               )}
               {activeTab === "playlists" && (
                 <PlaylistsTab
-                  courses={courses}
-                  playlists={playlists}
+                  courses={visibleCourses}
+                  playlists={visiblePlaylists}
                   supabase={supabase}
                   onChange={loadAll}
                 />
@@ -581,11 +725,224 @@ function UniversitiesTab({
   );
 }
 
+function UsersTab({
+  profiles,
+  yearManagers,
+  universities,
+  years,
+  supabase,
+  onChange,
+}: {
+  profiles: ProfileRow[];
+  yearManagers: YearManagerRow[];
+  universities: University[];
+  years: Year[];
+  supabase: SupabaseClient;
+  onChange: () => void;
+}) {
+  const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
+  const [assignUniversityId, setAssignUniversityId] = useState<number | string>("");
+  const [assignYearId, setAssignYearId] = useState<number | string>("");
+  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function yearsForUniversity(universityId: number | string): Year[] {
+    return years.filter((y) => String(y.university_id) === String(universityId));
+  }
+
+  function startAssign(userId: string) {
+    setFormError(null);
+    setAssigningUserId(userId);
+    const firstUniversity = universities[0]?.id ?? "";
+    setAssignUniversityId(firstUniversity);
+    setAssignYearId(yearsForUniversity(firstUniversity)[0]?.id ?? "");
+  }
+
+  function cancelAssign() {
+    setAssigningUserId(null);
+    setFormError(null);
+  }
+
+  async function handleAssignSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!assigningUserId || !assignYearId) return;
+
+    setFormError(null);
+    setBusyUserId(assigningUserId);
+
+    const { error } = await supabase.rpc("assign_year_admin", {
+      target_profile_id: assigningUserId,
+      target_year_id: Number(assignYearId),
+    });
+
+    setBusyUserId(null);
+
+    if (error) {
+      setFormError(`فشل التعيين: ${error.message}`);
+      return;
+    }
+
+    setAssigningUserId(null);
+    onChange();
+  }
+
+  async function handleUnassign(userId: string, yearId: number) {
+    if (!confirm("هل أنت متأكد من إلغاء تعيين هذا الأدمن على هذه الفرقة؟")) return;
+
+    setBusyUserId(userId);
+
+    const { error } = await supabase.rpc("unassign_year_admin", {
+      target_profile_id: userId,
+      target_year_id: yearId,
+    });
+
+    setBusyUserId(null);
+
+    if (error) {
+      alert(`فشل الإلغاء: ${error.message}`);
+      return;
+    }
+
+    onChange();
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+      <ul className="flex flex-col gap-3">
+        {profiles.length === 0 ? (
+          <p className="text-sm text-navy/60">لا يوجد مستخدمين مسجلين بعد</p>
+        ) : (
+          profiles.map((profile) => {
+            const assignments = yearManagers.filter((ym) => ym.profile_id === profile.id);
+            const isAssigning = assigningUserId === profile.id;
+
+            return (
+              <li key={profile.id} className="rounded-xl border border-navy/10 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-navy">
+                      {profile.full_name || profile.email}
+                    </p>
+                    <p className="text-sm text-navy/60">{profile.email}</p>
+                    {profile.phone && <p className="text-sm text-navy/60">{profile.phone}</p>}
+                    <p className="mt-1 text-xs text-navy/50">
+                      {new Date(profile.created_at).toLocaleDateString("ar-EG")}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="inline-flex items-center rounded-full bg-turquoise/10 px-3 py-1 text-xs font-semibold text-turquoise">
+                      {ROLE_LABELS[profile.role] ?? profile.role}
+                    </span>
+                    {profile.role !== "super_admin" && (
+                      <button
+                        type="button"
+                        disabled={busyUserId === profile.id}
+                        onClick={() => startAssign(profile.id)}
+                        className="text-sm font-medium text-turquoise hover:underline disabled:opacity-60"
+                      >
+                        {profile.role === "year_admin" ? "تعيين على فرقة إضافية" : "تعيين كأدمن فرقة"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {profile.role === "year_admin" && assignments.length > 0 && (
+                  <ul className="mt-3 flex flex-col gap-2 border-t border-navy/10 pt-3">
+                    {assignments.map((assignment) => (
+                      <li
+                        key={assignment.id}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span className="text-navy/80">
+                          {assignment.years?.universities?.name} — {assignment.years?.name}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={busyUserId === profile.id}
+                          onClick={() => handleUnassign(profile.id, assignment.year_id)}
+                          className="text-xs font-medium text-red-600 hover:underline disabled:opacity-60"
+                        >
+                          إلغاء
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {isAssigning && (
+                  <form
+                    onSubmit={handleAssignSubmit}
+                    className="mt-3 flex flex-col gap-3 rounded-lg bg-navy/5 p-3 sm:flex-row sm:items-end"
+                  >
+                    <div className="flex-1">
+                      <label className="mb-1 block text-xs font-medium text-navy">الجامعة</label>
+                      <select
+                        value={assignUniversityId}
+                        onChange={(e) => {
+                          setAssignUniversityId(e.target.value);
+                          setAssignYearId(yearsForUniversity(e.target.value)[0]?.id ?? "");
+                        }}
+                        className={inputClasses}
+                      >
+                        {universities.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="mb-1 block text-xs font-medium text-navy">الفرقة</label>
+                      <select
+                        value={assignYearId}
+                        onChange={(e) => setAssignYearId(e.target.value)}
+                        className={inputClasses}
+                      >
+                        {yearsForUniversity(assignUniversityId).length === 0 && (
+                          <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                        )}
+                        {yearsForUniversity(assignUniversityId).map((y) => (
+                          <option key={y.id} value={y.id}>
+                            {y.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="submit"
+                        disabled={busyUserId === profile.id || !assignYearId}
+                        className="rounded-full bg-gradient-to-l from-navy to-turquoise px-4 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+                      >
+                        حفظ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelAssign}
+                        className="text-xs font-medium text-navy/60 hover:text-navy"
+                      >
+                        إلغاء
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </li>
+            );
+          })
+        )}
+      </ul>
+    </div>
+  );
+}
+
 function CoursesTab({
   universities,
   years,
   terms,
   courses,
+  restrictToAcademic = false,
   supabase,
   onChange,
 }: {
@@ -593,6 +950,7 @@ function CoursesTab({
   years: Year[];
   terms: Term[];
   courses: Course[];
+  restrictToAcademic?: boolean;
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
@@ -629,7 +987,11 @@ function CoursesTab({
 
   const availableYears = yearsForUniversity(form.university_id);
   const availableTerms = termsForYear(form.year_id);
-  const isAcademic = form.category === "academic";
+  // أدمن الفرقة (restrictToAcademic) ميقدرش يدير مسارات تعلم البرمجة أصلًا
+  // (مش مرتبطة بجامعة/فرقة، ومحجوزة لـ super_admin بس — نفس القيد اللي في
+  // سياسات RLS بتاعة courses في roles_v2_policies_update.sql)، فبنقفل
+  // الفورم على "أكاديمية" دايمًا في الحالة دي.
+  const isAcademic = restrictToAcademic || form.category === "academic";
   const availableParents = courses.filter(
     (c) => c.category === "learning_path" && c.id !== editingId
   );
@@ -727,18 +1089,20 @@ function CoursesTab({
           {editingId ? "تعديل مادة" : "إضافة مادة جديدة"}
         </h2>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-navy">نوع المحتوى</label>
-          <select
-            required
-            value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value as CourseCategory })}
-            className={inputClasses}
-          >
-            <option value="academic">مادة أكاديمية</option>
-            <option value="learning_path">مسار تعلم برمجة</option>
-          </select>
-        </div>
+        {!restrictToAcademic && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-navy">نوع المحتوى</label>
+            <select
+              required
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value as CourseCategory })}
+              className={inputClasses}
+            >
+              <option value="academic">مادة أكاديمية</option>
+              <option value="learning_path">مسار تعلم برمجة</option>
+            </select>
+          </div>
+        )}
 
         <input
           required
