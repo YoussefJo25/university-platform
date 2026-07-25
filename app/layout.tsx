@@ -33,7 +33,7 @@ export default async function RootLayout({
         />
         <Header universityName={settings.university_name} logoUrl={settings.logo_url} />
         <main className="flex flex-1 flex-col">{children}</main>
-        <Footer footerText={settings.footer_text} />
+        <Footer settings={settings} />
         <WhatsAppButton whatsappNumber={settings.whatsapp_number} />
       </body>
     </html>
