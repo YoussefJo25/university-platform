@@ -22,8 +22,15 @@ export default function LoginPage() {
   const [yearId, setYearId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const isLogin = mode === "login";
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("passwordReset") === "1") {
+      setResetSuccess(true);
+    }
+  }, []);
 
   function yearsForUniversity(uniId: number | string): YearOption[] {
     return years.filter((y) => String(y.university_id) === String(uniId));
@@ -119,6 +126,12 @@ export default function LoginPage() {
 
       <section className="flex flex-1 items-center justify-center bg-canvas px-4 py-12 sm:px-6">
         <div className="w-full max-w-sm">
+          {resetSuccess && isLogin && (
+            <p className="mb-4 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center text-sm font-medium text-gold">
+              تم تغيير كلمة المرور بنجاح، سجّل دخولك بكلمة المرور الجديدة.
+            </p>
+          )}
+
           <form
             onSubmit={handleSubmit}
             className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
@@ -238,6 +251,14 @@ export default function LoginPage() {
                 className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
                 placeholder="••••••••"
               />
+              {isLogin && (
+                <Link
+                  href="/forgot-password"
+                  className="mt-1.5 inline-block text-sm font-medium text-gold hover:underline"
+                >
+                  نسيت كلمة المرور؟
+                </Link>
+              )}
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
