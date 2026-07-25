@@ -1,4 +1,4 @@
-export type RoleKey = "developer" | "university_president" | "college_dean";
+export type RoleKey = "developer" | "dedication";
 
 export type LeadershipMember = {
   id: number;
@@ -10,12 +10,11 @@ export type LeadershipMember = {
   order_index: number;
 };
 
-export const ROLE_ORDER: RoleKey[] = ["developer", "university_president", "college_dean"];
+export const ROLE_ORDER: RoleKey[] = ["developer", "dedication"];
 
 export const ROLE_FALLBACK_TITLE: Record<RoleKey, string> = {
   developer: "مطوّر المنصة",
-  university_president: "رئيس الجامعة",
-  college_dean: "عميد الكلية",
+  dedication: "صدقة جارية",
 };
 
 export async function getLeadershipMembers(): Promise<LeadershipMember[]> {

@@ -9,9 +9,6 @@ export type SiteSettings = {
   social_twitter: string;
   social_instagram: string;
   footer_text: string;
-  about_university_text: string;
-  founding_year: string;
-  college_building_photo_url: string;
   whatsapp_number: string;
 };
 
@@ -26,9 +23,6 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   social_twitter: "",
   social_instagram: "",
   footer_text: "جميع الحقوق محفوظة لجامعة المنيا الاهلية",
-  about_university_text: "",
-  founding_year: "",
-  college_building_photo_url: "",
   whatsapp_number: "",
 };
 

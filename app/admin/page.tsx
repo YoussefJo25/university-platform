@@ -13,7 +13,6 @@ import { ROLE_LABELS, type Role } from "@/lib/roles";
 const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 const MAX_BIO_LENGTH = 500;
-const MAX_ABOUT_LENGTH = 1500;
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -110,7 +109,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "books", label: "الكتب" },
   { key: "playlists", label: "الفيديوهات" },
   { key: "settings", label: "إعدادات الموقع" },
-  { key: "leadership", label: "القيادة والنبذة" },
+  { key: "leadership", label: "القيادة" },
 ];
 
 const inputClasses =
@@ -449,7 +448,6 @@ export default function AdminPage() {
               {activeTab === "leadership" && (
                 <LeadershipTab
                   members={leadershipMembers}
-                  settings={settings}
                   supabase={supabase}
                   onChange={loadAll}
                 />
@@ -2205,12 +2203,10 @@ function buildMemberForms(members: LeadershipMember[]): Record<RoleKey, MemberFo
 
 function LeadershipTab({
   members,
-  settings,
   supabase,
   onChange,
 }: {
   members: LeadershipMember[];
-  settings: SiteSettings;
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
@@ -2218,10 +2214,6 @@ function LeadershipTab({
     buildMemberForms(members)
   );
   const [memberFiles, setMemberFiles] = useState<Partial<Record<RoleKey, File>>>({});
-  const [aboutText, setAboutText] = useState(settings.about_university_text);
-  const [foundingYear, setFoundingYear] = useState(settings.founding_year);
-  const [buildingPhotoUrl, setBuildingPhotoUrl] = useState(settings.college_building_photo_url);
-  const [buildingFile, setBuildingFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState(false);
@@ -2229,12 +2221,6 @@ function LeadershipTab({
   useEffect(() => {
     setMemberForms(buildMemberForms(members));
   }, [members]);
-
-  useEffect(() => {
-    setAboutText(settings.about_university_text);
-    setFoundingYear(settings.founding_year);
-    setBuildingPhotoUrl(settings.college_building_photo_url);
-  }, [settings]);
 
   function updateMemberField(roleKey: RoleKey, field: keyof MemberFormState, value: string) {
     setMemberForms((prev) => ({ ...prev, [roleKey]: { ...prev[roleKey], [field]: value } }));
@@ -2267,32 +2253,6 @@ function LeadershipTab({
     setMemberFiles((prev) => ({ ...prev, [roleKey]: selected }));
   }
 
-  function handleBuildingPhotoChange(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0] ?? null;
-    setFormError(null);
-    setSuccessMessage(false);
-
-    if (!selected) {
-      setBuildingFile(null);
-      return;
-    }
-
-    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
-    if (!allowedTypes.includes(selected.type)) {
-      setFormError("صورة المبنى لازم تكون بصيغة PNG أو JPEG أو WebP.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selected.size > MAX_LOGO_FILE_SIZE) {
-      setFormError("حجم صورة المبنى أكبر من الحد المسموح به (2 ميجابايت).");
-      event.target.value = "";
-      return;
-    }
-
-    setBuildingFile(selected);
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFormError(null);
@@ -2305,11 +2265,6 @@ function LeadershipTab({
         );
         return;
       }
-    }
-
-    if (aboutText.length > MAX_ABOUT_LENGTH) {
-      setFormError(`نبذة الجامعة لازم تكون ${MAX_ABOUT_LENGTH} حرف أو أقل.`);
-      return;
     }
 
     setSaving(true);
@@ -2352,44 +2307,14 @@ function LeadershipTab({
 
     const failedMemberUpdate = memberUpdates.find((res) => res.error);
 
-    let finalBuildingPhotoUrl = buildingPhotoUrl;
-
-    if (buildingFile) {
-      const path = `leadership/building/${Date.now()}-${sanitizeFileName(buildingFile.name)}`;
-      const { error: uploadError } = await supabase.storage
-        .from("site-assets")
-        .upload(path, buildingFile);
-
-      if (uploadError) {
-        setSaving(false);
-        setFormError(`فشل رفع صورة المبنى: ${uploadError.message}`);
-        return;
-      }
-
-      finalBuildingPhotoUrl = supabase.storage.from("site-assets").getPublicUrl(path).data
-        .publicUrl;
-    }
-
-    const { error: settingsError } = await supabase.from("site_settings").upsert(
-      [
-        { key: "about_university_text", value: aboutText },
-        { key: "founding_year", value: foundingYear },
-        { key: "college_building_photo_url", value: finalBuildingPhotoUrl },
-      ],
-      { onConflict: "key" }
-    );
-
     setSaving(false);
 
-    if (failedMemberUpdate || settingsError) {
-      setFormError(
-        `فشل حفظ البيانات: ${failedMemberUpdate?.error?.message ?? settingsError?.message}`
-      );
+    if (failedMemberUpdate) {
+      setFormError(`فشل حفظ البيانات: ${failedMemberUpdate.error?.message}`);
       return;
     }
 
     setMemberFiles({});
-    setBuildingFile(null);
     setSuccessMessage(true);
     onChange();
   }
@@ -2461,68 +2386,6 @@ function LeadershipTab({
           </div>
         </div>
       ))}
-
-      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-ink">نبذة عن الجامعة</h2>
-        <div className="mt-4 flex flex-col gap-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink">
-              سنة التأسيس (اختياري)
-            </label>
-            <input
-              value={foundingYear}
-              onChange={(e) => {
-                setFoundingYear(e.target.value);
-                setSuccessMessage(false);
-              }}
-              className={inputClasses}
-              placeholder="مثلاً 2015"
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink">
-              النص ({aboutText.length}/{MAX_ABOUT_LENGTH})
-            </label>
-            <textarea
-              rows={5}
-              maxLength={MAX_ABOUT_LENGTH}
-              value={aboutText}
-              onChange={(e) => {
-                setAboutText(e.target.value);
-                setSuccessMessage(false);
-              }}
-              className={inputClasses}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink">
-              صورة مبنى الكلية (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
-            </label>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleBuildingPhotoChange}
-              className={inputClasses}
-            />
-            {buildingPhotoUrl && !buildingFile && (
-              <p className="mt-2 text-sm text-muted">
-                الصورة الحالية:{" "}
-                <a
-                  href={buildingPhotoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-gold hover:underline"
-                >
-                  عرض
-                </a>
-              </p>
-            )}
-            {buildingFile && (
-              <p className="mt-2 text-sm text-muted">الصورة المختارة: {buildingFile.name}</p>
-            )}
-          </div>
-        </div>
-      </div>
 
       {formError && <p className="text-sm text-red-600">{formError}</p>}
       {successMessage && <p className="text-sm text-green-600">تم حفظ البيانات بنجاح.</p>}
