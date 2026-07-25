@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Mode = "login" | "signup";
+type UniversityOption = { id: number; name: string };
+type YearOption = { id: number; name: string; university_id: number | null };
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,10 +16,41 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [universities, setUniversities] = useState<UniversityOption[]>([]);
+  const [years, setYears] = useState<YearOption[]>([]);
+  const [universityId, setUniversityId] = useState("");
+  const [yearId, setYearId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const isLogin = mode === "login";
+
+  function yearsForUniversity(uniId: number | string): YearOption[] {
+    return years.filter((y) => String(y.university_id) === String(uniId));
+  }
+
+  useEffect(() => {
+    async function loadOptions() {
+      const supabase = createClient();
+      const [universitiesRes, yearsRes] = await Promise.all([
+        supabase.from("universities").select("id, name").order("order_index"),
+        supabase.from("years").select("id, name, university_id, year_number").order("year_number"),
+      ]);
+
+      const universitiesData = (universitiesRes.data ?? []) as UniversityOption[];
+      const yearsData = (yearsRes.data ?? []) as YearOption[];
+
+      setUniversities(universitiesData);
+      setYears(yearsData);
+
+      const firstUniversity = universitiesData[0]?.id ?? "";
+      setUniversityId(String(firstUniversity));
+      const firstYear = yearsData.find((y) => String(y.university_id) === String(firstUniversity));
+      setYearId(firstYear ? String(firstYear.id) : "");
+    }
+
+    loadOptions();
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -34,6 +67,11 @@ export default function LoginPage() {
         setError("رقم الهاتف لازم يكون أرقام فقط، بين 10 و15 رقم.");
         return;
       }
+
+      if (!universityId || !yearId) {
+        setError("من فضلك اختر الجامعة والفرقة الدراسية.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -46,7 +84,12 @@ export default function LoginPage() {
           email,
           password,
           options: {
-            data: { full_name: fullName.trim(), phone },
+            data: {
+              full_name: fullName.trim(),
+              phone,
+              university_id: Number(universityId),
+              year_id: Number(yearId),
+            },
           },
         });
 
@@ -127,6 +170,58 @@ export default function LoginPage() {
                   placeholder="01xxxxxxxxx"
                 />
               </div>
+            )}
+
+            {!isLogin && (
+              <>
+                <div>
+                  <label
+                    htmlFor="university"
+                    className="mb-1.5 block text-sm font-medium text-ink"
+                  >
+                    الجامعة
+                  </label>
+                  <select
+                    id="university"
+                    required
+                    value={universityId}
+                    onChange={(e) => {
+                      setUniversityId(e.target.value);
+                      setYearId(yearsForUniversity(e.target.value)[0]?.id.toString() ?? "");
+                    }}
+                    className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
+                  >
+                    {universities.length === 0 && <option value="">جارٍ التحميل...</option>}
+                    {universities.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="year" className="mb-1.5 block text-sm font-medium text-ink">
+                    الفرقة الدراسية
+                  </label>
+                  <select
+                    id="year"
+                    required
+                    value={yearId}
+                    onChange={(e) => setYearId(e.target.value)}
+                    className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
+                  >
+                    {yearsForUniversity(universityId).length === 0 && (
+                      <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                    )}
+                    {yearsForUniversity(universityId).map((y) => (
+                      <option key={y.id} value={y.id}>
+                        {y.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
 
             <div>
