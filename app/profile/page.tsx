@@ -1,13 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "@/components/ProfileForm";
+import { roleLabel } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
-
-const ROLE_LABELS: Record<string, string> = {
-  admin: "أدمن",
-  student: "طالب",
-};
 
 type Profile = {
   full_name: string | null;
@@ -65,7 +61,7 @@ export default async function ProfilePage() {
               <div>
                 <dt className="text-xs font-medium text-navy/50">نوع الحساب</dt>
                 <dd className="mt-1 text-sm font-semibold text-navy">
-                  {ROLE_LABELS[profile?.role ?? "student"] ?? "طالب"}
+                  {roleLabel(profile?.role)}
                 </dd>
               </div>
               {createdAt && (

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getDisplayName } from "@/lib/displayName";
+import { isStaffRole } from "@/lib/roles";
 
 const baseNavLinks = [
   { href: "/", label: "الرئيسية" },
@@ -41,7 +42,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
           .select("role, full_name")
           .eq("id", user.id)
           .single();
-        setIsAdmin(profile?.role === "admin");
+        setIsAdmin(isStaffRole(profile?.role));
         setDisplayName(getDisplayName(profile?.full_name, user.email));
       } else {
         setIsAdmin(false);

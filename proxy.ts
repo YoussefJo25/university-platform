@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isStaffRole } from "@/lib/roles";
 
 export default async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -38,7 +39,7 @@ export default async function proxy(request: NextRequest) {
       .eq("id", user.id)
       .single();
 
-    if (profile?.role !== "admin") {
+    if (!isStaffRole(profile?.role)) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

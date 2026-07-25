@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getSiteSettings } from "@/lib/siteSettings";
 import { getLeadershipMembers, ROLE_FALLBACK_TITLE, ROLE_ORDER } from "@/lib/leadership";
 import { getDisplayName } from "@/lib/displayName";
+import { isStaffRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +41,7 @@ export default async function Home() {
       .select("role, full_name")
       .eq("id", user.id)
       .single();
-    isAdmin = profile?.role === "admin";
+    isAdmin = isStaffRole(profile?.role);
     displayName = getDisplayName(profile?.full_name, user.email);
   }
 
