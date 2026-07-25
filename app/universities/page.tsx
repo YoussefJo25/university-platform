@@ -22,7 +22,7 @@ export default async function UniversitiesPage() {
   return (
     <div className="flex flex-1 flex-col">
       <section className="bg-panel border-b border-subtle px-4 py-14 text-center sm:px-6">
-        <h1 className="text-2xl font-extrabold text-ink sm:text-4xl">الجامعات</h1>
+        <h1 className="text-2xl font-extrabold font-display text-ink sm:text-4xl">الجامعات</h1>
         <p className="mt-3 text-sm text-muted sm:text-base">
           اختر جامعتك للاطلاع على فرقها الدراسية ومحتواها
         </p>

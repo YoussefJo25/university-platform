@@ -4,7 +4,7 @@ export default function NotFound() {
   return (
     <div className="flex flex-1 flex-col items-center justify-center bg-canvas px-4 py-24 text-center">
       <p className="text-sm font-semibold text-gold">404</p>
-      <h1 className="mt-2 text-2xl font-extrabold text-ink sm:text-3xl">
+      <h1 className="mt-2 text-2xl font-extrabold font-display text-ink sm:text-3xl">
         الصفحة غير موجودة
       </h1>
       <p className="mt-3 text-sm text-muted">

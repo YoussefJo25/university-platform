@@ -51,7 +51,7 @@ export default async function TermDetailPage({
         {term.years && (
           <p className="text-xs font-medium text-muted sm:text-sm">{term.years.name}</p>
         )}
-        <h1 className="mt-2 text-2xl font-extrabold text-ink sm:text-4xl">{term.name}</h1>
+        <h1 className="mt-2 text-2xl font-extrabold font-display text-ink sm:text-4xl">{term.name}</h1>
         <p className="mt-3 text-sm text-muted sm:text-base">المواد الدراسية الخاصة بهذا الترم</p>
       </section>
 

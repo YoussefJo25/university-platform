@@ -51,7 +51,7 @@ export default async function YearDetailPage({
         <span className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-gold bg-card text-2xl font-bold text-gold">
           {year.year_number}
         </span>
-        <h1 className="text-2xl font-extrabold text-ink sm:text-4xl">{year.name}</h1>
+        <h1 className="text-2xl font-extrabold font-display text-ink sm:text-4xl">{year.name}</h1>
         <p className="mt-3 text-sm text-muted sm:text-base">
           اختر الترم الدراسي للاطلاع على مواده
         </p>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Cairo } from "next/font/google";
+import { Cairo, Aref_Ruqaa, Playfair_Display } from "next/font/google";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
@@ -9,6 +9,22 @@ import "./globals.css";
 const cairo = Cairo({
   variable: "--font-cairo",
   subsets: ["arabic", "latin"],
+});
+
+// خط العناوين الكبيرة (Hero/H1/H2 الرئيسية واسم المنصة) بس — النص العادي
+// كله بيستخدم Cairo. عربي وإنجليزي متعرّفين منفصلين عشان كل سكريبت ياخد
+// خطه المناسب (Aref Ruqaa للعربي، Playfair Display Italic للإنجليزي) لما
+// العنوان يبقى فيه خليط، زي "بوصلة | Bawsala".
+const displayFontAr = Aref_Ruqaa({
+  weight: "700",
+  subsets: ["arabic"],
+  variable: "--font-display-ar",
+});
+
+const displayFontEn = Playfair_Display({
+  style: "italic",
+  subsets: ["latin"],
+  variable: "--font-display-en",
 });
 
 export const metadata: Metadata = {
@@ -24,7 +40,11 @@ export default async function RootLayout({
   const settings = await getSiteSettings();
 
   return (
-    <html lang="ar" dir="rtl" className={`${cairo.variable} h-full antialiased`}>
+    <html
+      lang="ar"
+      dir="rtl"
+      className={`${cairo.variable} ${displayFontAr.variable} ${displayFontEn.variable} h-full antialiased`}
+    >
       <body className="flex min-h-full flex-col">
         <script
           dangerouslySetInnerHTML={{

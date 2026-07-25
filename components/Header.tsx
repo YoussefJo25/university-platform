@@ -93,7 +93,9 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
             priority
             className="h-10 w-10 shrink-0 rounded-full border-2 border-gold/80 object-cover shadow-sm sm:h-12 sm:w-12"
           />
-          <span className="text-base font-bold text-ink sm:text-xl">{universityName}</span>
+          <span className="font-display text-base font-bold text-ink sm:text-xl">
+            {universityName}
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">

@@ -241,7 +241,7 @@ export default async function CourseDetailPage({
             <p className="text-xs font-medium text-muted sm:text-sm">{course.years.name}</p>
           )
         )}
-        <h1 className="mt-2 text-2xl font-extrabold text-ink sm:text-4xl">{course.name}</h1>
+        <h1 className="mt-2 text-2xl font-extrabold font-display text-ink sm:text-4xl">{course.name}</h1>
       </section>
 
       <section className="flex-1 bg-canvas px-4 py-12 sm:px-6">

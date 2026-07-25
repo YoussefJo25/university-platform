@@ -22,7 +22,7 @@ export default function Footer({ settings }: { settings: SiteSettings }) {
     <footer className="border-t border-subtle bg-panel text-muted">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-12 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
         <div>
-          <h2 className="text-lg font-extrabold text-ink">{settings.university_name}</h2>
+          <h2 className="text-lg font-extrabold font-display text-ink">{settings.university_name}</h2>
           <p className="mt-3 text-sm leading-6 text-muted">{settings.hero_subtitle}</p>
         </div>
 

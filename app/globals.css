@@ -33,12 +33,19 @@
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
   --font-sans: var(--font-cairo);
+
+  /* font-body: كل النصوص العادية (فقرات، أزرار، فورمات، لوحة التحكم بالكامل).
+     font-display: العناوين الكبيرة بس (Hero/H1/H2 الرئيسية، اسم المنصة) —
+     عربي بـ Aref Ruqaa، وإنجليزي (زي الأجزاء اللاتينية في اسم المنصة) بـ
+     Playfair Display Italic تلقائيًا حسب الحروف. */
+  --font-body: var(--font-cairo), Arial, Helvetica, sans-serif;
+  --font-display: var(--font-display-ar), var(--font-display-en), serif;
 }
 
 body {
   background: var(--canvas);
   color: var(--ink);
-  font-family: var(--font-cairo), Arial, Helvetica, sans-serif;
+  font-family: var(--font-body);
   transition:
     background-color 0.2s ease,
     color 0.2s ease;

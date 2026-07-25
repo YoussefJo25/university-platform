@@ -88,7 +88,7 @@ export default async function Home() {
             <span className="h-1.5 w-1.5 rounded-full bg-gold" />
             المنصة الإلكترونية الرسمية
           </span>
-          <h1 className="mt-5 text-3xl font-extrabold text-ink sm:text-5xl">
+          <h1 className="mt-5 text-3xl font-extrabold font-display text-ink sm:text-5xl">
             {user ? (
               <>
                 أهلاً بيك يا <span className="italic text-gold">{displayName}</span>
@@ -132,7 +132,7 @@ export default async function Home() {
 
       <section className="border-t border-subtle bg-panel px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center text-2xl font-extrabold text-ink sm:text-3xl">
+          <h2 className="text-center text-2xl font-extrabold font-display text-ink sm:text-3xl">
             القيادة والفريق
           </h2>
 
