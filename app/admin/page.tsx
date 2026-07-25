@@ -75,6 +75,8 @@ type ProfileRow = {
   phone: string | null;
   role: Role;
   created_at: string;
+  university_id: number | null;
+  year_id: number | null;
 };
 type YearManagerRow = {
   id: number;
@@ -232,7 +234,7 @@ export default function AdminPage() {
       // صفوفه هو بس، super_admin بيرجعله كل الصفوف — نفس الاستعلام للكل.
       supabase
         .from("profiles")
-        .select("id, email, full_name, phone, role, created_at")
+        .select("id, email, full_name, phone, role, created_at, university_id, year_id")
         .order("created_at"),
       supabase
         .from("year_managers")
@@ -804,133 +806,189 @@ function UsersTab({
     onChange();
   }
 
+  // حساب/سنة null، أو أي دور مش "student" (زي super_admin/year_admin اللي
+  // ممكن يكون لسه شايل university_id/year_id من وقت ما كان طالب قبل الترقية)
+  // بيروحوا لقسم "غير مصنّف / حسابات إدارية" بدل ما يتوهوا داخل فرقة معينة.
+  function isUnclassified(profile: ProfileRow): boolean {
+    if (profile.role !== "student") return true;
+    return !years.some((y) => y.id === profile.year_id);
+  }
+
+  const classifiedProfiles = profiles.filter((p) => !isUnclassified(p));
+  const unclassifiedProfiles = profiles.filter(isUnclassified);
+
+  const universityGroups = universities
+    .map((university) => {
+      const uniYears = years.filter((y) => y.university_id === university.id);
+      const yearGroups = uniYears
+        .map((year) => ({
+          year,
+          profiles: classifiedProfiles.filter((p) => p.year_id === year.id),
+        }))
+        .filter((group) => group.profiles.length > 0);
+      const totalCount = yearGroups.reduce((sum, group) => sum + group.profiles.length, 0);
+      return { university, yearGroups, totalCount };
+    })
+    .filter((group) => group.totalCount > 0);
+
+  function renderProfileRow(profile: ProfileRow) {
+    const assignments = yearManagers.filter((ym) => ym.profile_id === profile.id);
+    const isAssigning = assigningUserId === profile.id;
+
+    return (
+      <li key={profile.id} className="rounded-xl border border-subtle bg-card p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold text-ink">{profile.full_name || profile.email}</p>
+            <p className="text-sm text-muted">{profile.email}</p>
+            {profile.phone && <p className="text-sm text-muted">{profile.phone}</p>}
+            <p className="mt-1 text-xs text-muted">
+              {new Date(profile.created_at).toLocaleDateString("ar-EG")}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center rounded-full bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
+              {ROLE_LABELS[profile.role] ?? profile.role}
+            </span>
+            {profile.role !== "super_admin" && (
+              <button
+                type="button"
+                disabled={busyUserId === profile.id}
+                onClick={() => startAssign(profile.id)}
+                className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
+              >
+                {profile.role === "year_admin" ? "تعيين على فرقة إضافية" : "تعيين كأدمن فرقة"}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {profile.role === "year_admin" && assignments.length > 0 && (
+          <ul className="mt-3 flex flex-col gap-2 border-t border-subtle bg-card pt-3">
+            {assignments.map((assignment) => (
+              <li key={assignment.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted">
+                  {assignment.years?.universities?.name} — {assignment.years?.name}
+                </span>
+                <button
+                  type="button"
+                  disabled={busyUserId === profile.id}
+                  onClick={() => handleUnassign(profile.id, assignment.year_id)}
+                  className="text-xs font-medium text-red-600 hover:underline disabled:opacity-60"
+                >
+                  إلغاء
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {isAssigning && (
+          <form
+            onSubmit={handleAssignSubmit}
+            className="mt-3 flex flex-col gap-3 rounded-lg bg-panel p-3 sm:flex-row sm:items-end"
+          >
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
+              <select
+                value={assignUniversityId}
+                onChange={(e) => {
+                  setAssignUniversityId(e.target.value);
+                  setAssignYearId(yearsForUniversity(e.target.value)[0]?.id ?? "");
+                }}
+                className={inputClasses}
+              >
+                {universities.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
+              <select
+                value={assignYearId}
+                onChange={(e) => setAssignYearId(e.target.value)}
+                className={inputClasses}
+              >
+                {yearsForUniversity(assignUniversityId).length === 0 && (
+                  <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                )}
+                {yearsForUniversity(assignUniversityId).map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={busyUserId === profile.id || !assignYearId}
+                className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
+              >
+                حفظ
+              </button>
+              <button
+                type="button"
+                onClick={cancelAssign}
+                className="text-xs font-medium text-muted hover:text-ink"
+              >
+                إلغاء
+              </button>
+            </div>
+          </form>
+        )}
+      </li>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {formError && <p className="text-sm text-red-600">{formError}</p>}
 
-      <ul className="flex flex-col gap-3">
-        {profiles.length === 0 ? (
-          <p className="text-sm text-muted">لا يوجد مستخدمين مسجلين بعد</p>
-        ) : (
-          profiles.map((profile) => {
-            const assignments = yearManagers.filter((ym) => ym.profile_id === profile.id);
-            const isAssigning = assigningUserId === profile.id;
+      {profiles.length === 0 ? (
+        <p className="text-sm text-muted">لا يوجد مستخدمين مسجلين بعد</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {universityGroups.map(({ university, yearGroups, totalCount }) => (
+            <details key={university.id} className="rounded-xl border border-subtle bg-card" open>
+              <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-ink">
+                {university.name}{" "}
+                <span className="font-normal text-muted">({totalCount})</span>
+              </summary>
+              <div className="flex flex-col gap-3 border-t border-subtle p-4">
+                {yearGroups.map(({ year, profiles: yearProfiles }) => (
+                  <details key={year.id} className="rounded-lg border border-subtle bg-panel">
+                    <summary className="cursor-pointer select-none px-3 py-2 text-sm font-semibold text-ink">
+                      {year.name}{" "}
+                      <span className="font-normal text-muted">
+                        ({yearProfiles.length} طالب)
+                      </span>
+                    </summary>
+                    <ul className="flex flex-col gap-3 p-3 pt-0">
+                      {yearProfiles.map(renderProfileRow)}
+                    </ul>
+                  </details>
+                ))}
+              </div>
+            </details>
+          ))}
 
-            return (
-              <li key={profile.id} className="rounded-xl border border-subtle bg-card p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-semibold text-ink">
-                      {profile.full_name || profile.email}
-                    </p>
-                    <p className="text-sm text-muted">{profile.email}</p>
-                    {profile.phone && <p className="text-sm text-muted">{profile.phone}</p>}
-                    <p className="mt-1 text-xs text-muted">
-                      {new Date(profile.created_at).toLocaleDateString("ar-EG")}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center rounded-full bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
-                      {ROLE_LABELS[profile.role] ?? profile.role}
-                    </span>
-                    {profile.role !== "super_admin" && (
-                      <button
-                        type="button"
-                        disabled={busyUserId === profile.id}
-                        onClick={() => startAssign(profile.id)}
-                        className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
-                      >
-                        {profile.role === "year_admin" ? "تعيين على فرقة إضافية" : "تعيين كأدمن فرقة"}
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {profile.role === "year_admin" && assignments.length > 0 && (
-                  <ul className="mt-3 flex flex-col gap-2 border-t border-subtle bg-card pt-3">
-                    {assignments.map((assignment) => (
-                      <li
-                        key={assignment.id}
-                        className="flex items-center justify-between gap-3 text-sm"
-                      >
-                        <span className="text-muted">
-                          {assignment.years?.universities?.name} — {assignment.years?.name}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={busyUserId === profile.id}
-                          onClick={() => handleUnassign(profile.id, assignment.year_id)}
-                          className="text-xs font-medium text-red-600 hover:underline disabled:opacity-60"
-                        >
-                          إلغاء
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {isAssigning && (
-                  <form
-                    onSubmit={handleAssignSubmit}
-                    className="mt-3 flex flex-col gap-3 rounded-lg bg-panel p-3 sm:flex-row sm:items-end"
-                  >
-                    <div className="flex-1">
-                      <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
-                      <select
-                        value={assignUniversityId}
-                        onChange={(e) => {
-                          setAssignUniversityId(e.target.value);
-                          setAssignYearId(yearsForUniversity(e.target.value)[0]?.id ?? "");
-                        }}
-                        className={inputClasses}
-                      >
-                        {universities.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex-1">
-                      <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
-                      <select
-                        value={assignYearId}
-                        onChange={(e) => setAssignYearId(e.target.value)}
-                        className={inputClasses}
-                      >
-                        {yearsForUniversity(assignUniversityId).length === 0 && (
-                          <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
-                        )}
-                        {yearsForUniversity(assignUniversityId).map((y) => (
-                          <option key={y.id} value={y.id}>
-                            {y.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        type="submit"
-                        disabled={busyUserId === profile.id || !assignYearId}
-                        className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
-                      >
-                        حفظ
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelAssign}
-                        className="text-xs font-medium text-muted hover:text-ink"
-                      >
-                        إلغاء
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </li>
-            );
-          })
-        )}
-      </ul>
+          {unclassifiedProfiles.length > 0 && (
+            <details className="rounded-xl border border-subtle bg-card" open>
+              <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-ink">
+                غير مصنّف / حسابات إدارية{" "}
+                <span className="font-normal text-muted">({unclassifiedProfiles.length})</span>
+              </summary>
+              <ul className="flex flex-col gap-3 p-4 pt-0">
+                {unclassifiedProfiles.map(renderProfileRow)}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
     </div>
   );
 }
