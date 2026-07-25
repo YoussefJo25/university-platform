@@ -9,7 +9,7 @@ import { getDisplayName } from "@/lib/displayName";
 
 const baseNavLinks = [
   { href: "/", label: "الرئيسية" },
-  { href: "/academic-years", label: "السنين الدراسية" },
+  { href: "/universities", label: "السنين الدراسية" },
   { href: "/learning-path", label: "مسار تعلم البرمجة" },
   { href: "/compiler", label: "الكمبايلر" },
 ];

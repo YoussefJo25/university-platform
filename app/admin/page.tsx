@@ -25,7 +25,21 @@ function getStoragePathFromPublicUrl(publicUrl: string): string | null {
   return decodeURIComponent(publicUrl.slice(index + marker.length));
 }
 
-type Year = { id: number; name: string; year_number: number };
+function getStoragePathFromSiteAssetsUrl(publicUrl: string): string | null {
+  const marker = "/object/public/site-assets/";
+  const index = publicUrl.indexOf(marker);
+  if (index === -1) return null;
+  return decodeURIComponent(publicUrl.slice(index + marker.length));
+}
+
+type University = {
+  id: number;
+  name: string;
+  logo_url: string | null;
+  description: string | null;
+  order_index: number;
+};
+type Year = { id: number; name: string; year_number: number; university_id: number | null };
 type Term = { id: number; year_id: number; term_number: number; name: string };
 type CourseCategory = "academic" | "learning_path";
 type Course = {
@@ -55,9 +69,10 @@ type Playlist = {
   group_name: string | null;
 };
 
-type TabKey = "courses" | "books" | "playlists" | "settings" | "leadership";
+type TabKey = "universities" | "courses" | "books" | "playlists" | "settings" | "leadership";
 
 const tabs: { key: TabKey; label: string }[] = [
+  { key: "universities", label: "الجامعات" },
   { key: "courses", label: "المواد" },
   { key: "books", label: "الكتب" },
   { key: "playlists", label: "الفيديوهات" },
@@ -72,6 +87,7 @@ export default function AdminPage() {
   const supabase = createClient();
 
   const [activeTab, setActiveTab] = useState<TabKey>("courses");
+  const [universities, setUniversities] = useState<University[]>([]);
   const [years, setYears] = useState<Year[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -140,6 +156,7 @@ export default function AdminPage() {
     setError(null);
 
     const [
+      universitiesRes,
       yearsRes,
       termsRes,
       coursesRes,
@@ -149,7 +166,11 @@ export default function AdminPage() {
       settingsRes,
       leadershipRes,
     ] = await Promise.all([
-      supabase.from("years").select("id, name, year_number").order("year_number"),
+      supabase
+        .from("universities")
+        .select("id, name, logo_url, description, order_index")
+        .order("order_index"),
+      supabase.from("years").select("id, name, year_number, university_id").order("year_number"),
       supabase.from("terms").select("id, year_id, term_number, name").order("term_number"),
       fetchCourses(),
       supabase
@@ -170,6 +191,7 @@ export default function AdminPage() {
     ]);
 
     if (
+      universitiesRes.error ||
       yearsRes.error ||
       termsRes.error ||
       coursesRes.error ||
@@ -179,6 +201,7 @@ export default function AdminPage() {
     ) {
       setError("حدث خطأ أثناء تحميل البيانات.");
     } else {
+      setUniversities((universitiesRes.data ?? []) as University[]);
       setYears((yearsRes.data ?? []) as Year[]);
       setTerms((termsRes.data ?? []) as Term[]);
       setCourses((coursesRes.data ?? []) as Course[]);
@@ -242,8 +265,16 @@ export default function AdminPage() {
             <p className="mt-6 text-center text-sm text-navy/60">جارٍ التحميل...</p>
           ) : (
             <div className="mt-6">
+              {activeTab === "universities" && (
+                <UniversitiesTab
+                  universities={universities}
+                  supabase={supabase}
+                  onChange={loadAll}
+                />
+              )}
               {activeTab === "courses" && (
                 <CoursesTab
+                  universities={universities}
                   years={years}
                   terms={terms}
                   courses={courses}
@@ -289,28 +320,297 @@ export default function AdminPage() {
 
 type SupabaseClient = ReturnType<typeof createClient>;
 
+function UniversitiesTab({
+  universities,
+  supabase,
+  onChange,
+}: {
+  universities: University[];
+  supabase: SupabaseClient;
+  onChange: () => void;
+}) {
+  const empty: { name: string; description: string; order_index: number | string } = {
+    name: "",
+    description: "",
+    order_index: universities.length,
+  };
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [form, setForm] = useState(empty);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  function startEdit(university: University) {
+    setEditingId(university.id);
+    setForm({
+      name: university.name,
+      description: university.description ?? "",
+      order_index: university.order_index,
+    });
+    setLogoUrl(university.logo_url);
+    setLogoFile(null);
+    setFormError(null);
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm({ name: "", description: "", order_index: universities.length });
+    setLogoUrl(null);
+    setLogoFile(null);
+    setFormError(null);
+  }
+
+  function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0] ?? null;
+    setFormError(null);
+
+    if (!selected) {
+      setLogoFile(null);
+      return;
+    }
+
+    const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedTypes.includes(selected.type)) {
+      setFormError("الشعار لازم يكون صورة بصيغة PNG أو JPEG أو WebP.");
+      event.target.value = "";
+      setLogoFile(null);
+      return;
+    }
+
+    if (selected.size > MAX_LOGO_FILE_SIZE) {
+      setFormError("حجم الصورة أكبر من الحد المسموح به (2 ميجابايت).");
+      event.target.value = "";
+      setLogoFile(null);
+      return;
+    }
+
+    setLogoFile(selected);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError(null);
+    setSaving(true);
+
+    let finalLogoUrl = logoUrl;
+
+    if (logoFile) {
+      const path = `universities/${Date.now()}-${sanitizeFileName(logoFile.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("site-assets")
+        .upload(path, logoFile);
+
+      if (uploadError) {
+        setSaving(false);
+        setFormError(`فشل رفع الشعار: ${uploadError.message}`);
+        return;
+      }
+
+      finalLogoUrl = supabase.storage.from("site-assets").getPublicUrl(path).data.publicUrl;
+    }
+
+    const payload = {
+      name: form.name,
+      description: form.description || null,
+      logo_url: finalLogoUrl,
+      order_index: Number(form.order_index) || 0,
+    };
+
+    const { error } = editingId
+      ? await supabase.from("universities").update(payload).eq("id", editingId)
+      : await supabase.from("universities").insert(payload);
+
+    setSaving(false);
+
+    if (error) {
+      setFormError(`فشل حفظ الجامعة: ${error.message}`);
+      return;
+    }
+
+    resetForm();
+    onChange();
+  }
+
+  async function handleDelete(university: University) {
+    if (
+      !confirm(
+        `هل أنت متأكد من حذف جامعة "${university.name}"؟ سيتم حذف كل فرقها الدراسية وترميناتها وموادها المرتبطة بها.`
+      )
+    )
+      return;
+
+    if (university.logo_url) {
+      const path = getStoragePathFromSiteAssetsUrl(university.logo_url);
+      if (path) {
+        await supabase.storage.from("site-assets").remove([path]);
+      }
+    }
+
+    await supabase.from("universities").delete().eq("id", university.id);
+    onChange();
+  }
+
+  return (
+    <div className="flex flex-col gap-8">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4 rounded-2xl border border-navy/10 p-6 shadow-sm"
+      >
+        <h2 className="text-lg font-bold text-navy">
+          {editingId ? "تعديل جامعة" : "إضافة جامعة جديدة"}
+        </h2>
+
+        <input
+          required
+          placeholder="اسم الجامعة"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className={inputClasses}
+        />
+        <textarea
+          placeholder="الوصف (اختياري)"
+          value={form.description}
+          onChange={(e) => setForm({ ...form, description: e.target.value })}
+          className={inputClasses}
+          rows={3}
+        />
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-navy">
+            الشعار (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
+          </label>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={handleLogoChange}
+            className={inputClasses}
+          />
+          {logoUrl && !logoFile && (
+            <p className="mt-2 text-sm text-navy/60">
+              الشعار الحالي:{" "}
+              <a
+                href={logoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-turquoise hover:underline"
+              >
+                عرض
+              </a>
+            </p>
+          )}
+          {logoFile && (
+            <p className="mt-2 text-sm text-navy/60">الشعار المختار: {logoFile.name}</p>
+          )}
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-navy">
+            ترتيب العرض (اختياري)
+          </label>
+          <input
+            type="number"
+            value={form.order_index}
+            onChange={(e) => setForm({ ...form, order_index: e.target.value })}
+            className={inputClasses}
+          />
+        </div>
+
+        {!editingId && (
+          <p className="text-xs text-navy/50">
+            هيتم إنشاء 4 فرق دراسية (الأولى إلى الرابعة) وترمين لكل فرقة تلقائيًا عند الإضافة.
+          </p>
+        )}
+
+        {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+        <div className="flex gap-3">
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+          >
+            {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
+          </button>
+          {editingId && (
+            <button
+              type="button"
+              onClick={resetForm}
+              className="text-sm font-medium text-navy/60 hover:text-navy"
+            >
+              إلغاء
+            </button>
+          )}
+        </div>
+      </form>
+
+      <ul className="flex flex-col gap-3">
+        {universities.length === 0 ? (
+          <p className="text-sm text-navy/60">لا توجد جامعات مضافة بعد</p>
+        ) : (
+          universities.map((university) => (
+            <li
+              key={university.id}
+              className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <p className="font-semibold text-navy">{university.name}</p>
+                {university.description && (
+                  <p className="text-sm text-navy/60">{university.description}</p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => startEdit(university)}
+                  className="text-sm font-medium text-turquoise hover:underline"
+                >
+                  تعديل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(university)}
+                  className="text-sm font-medium text-red-600 hover:underline"
+                >
+                  حذف
+                </button>
+              </div>
+            </li>
+          ))
+        )}
+      </ul>
+    </div>
+  );
+}
+
 function CoursesTab({
+  universities,
   years,
   terms,
   courses,
   supabase,
   onChange,
 }: {
+  universities: University[];
   years: Year[];
   terms: Term[];
   courses: Course[];
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
+  function yearsForUniversity(universityId: number | string): Year[] {
+    return years.filter((y) => String(y.university_id) === String(universityId));
+  }
+
   function termsForYear(yearId: number | string): Term[] {
     return terms.filter((t) => String(t.year_id) === String(yearId));
   }
 
-  const initialYearId = years[0]?.id ?? "";
+  const initialUniversityId = universities[0]?.id ?? "";
+  const initialYearId = yearsForUniversity(initialUniversityId)[0]?.id ?? "";
   const empty: {
     name: string;
     description: string;
     category: CourseCategory;
+    university_id: number | string;
     year_id: number | string;
     term_id: number | string;
     parent_course_id: number | string;
@@ -318,6 +618,7 @@ function CoursesTab({
     name: "",
     description: "",
     category: "academic",
+    university_id: initialUniversityId,
     year_id: initialYearId,
     term_id: termsForYear(initialYearId)[0]?.id ?? "",
     parent_course_id: "",
@@ -326,11 +627,24 @@ function CoursesTab({
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
 
+  const availableYears = yearsForUniversity(form.university_id);
   const availableTerms = termsForYear(form.year_id);
   const isAcademic = form.category === "academic";
   const availableParents = courses.filter(
     (c) => c.category === "learning_path" && c.id !== editingId
   );
+
+  function handleUniversityChange(newUniversityId: string) {
+    const nextYears = yearsForUniversity(newUniversityId);
+    const nextYearId = nextYears[0]?.id ?? "";
+    const nextTerms = termsForYear(nextYearId);
+    setForm({
+      ...form,
+      university_id: newUniversityId,
+      year_id: nextYearId,
+      term_id: nextTerms[0]?.id ?? "",
+    });
+  }
 
   function handleYearChange(newYearId: string) {
     const nextTerms = termsForYear(newYearId);
@@ -339,10 +653,12 @@ function CoursesTab({
 
   function startEdit(course: Course) {
     setEditingId(course.id);
+    const courseYear = years.find((y) => y.id === course.year_id);
     setForm({
       name: course.name,
       description: course.description ?? "",
       category: course.category,
+      university_id: courseYear?.university_id ?? initialUniversityId,
       year_id: course.year_id ?? initialYearId,
       term_id: course.term_id ?? "",
       parent_course_id: course.parent_course_id ?? "",
@@ -443,11 +759,26 @@ function CoursesTab({
           <>
             <select
               required
+              value={form.university_id}
+              onChange={(e) => handleUniversityChange(e.target.value)}
+              className={inputClasses}
+            >
+              {universities.map((university) => (
+                <option key={university.id} value={university.id}>
+                  {university.name}
+                </option>
+              ))}
+            </select>
+            <select
+              required
               value={form.year_id}
               onChange={(e) => handleYearChange(e.target.value)}
               className={inputClasses}
             >
-              {years.map((year) => (
+              {availableYears.length === 0 && (
+                <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+              )}
+              {availableYears.map((year) => (
                 <option key={year.id} value={year.id}>
                   {year.name}
                 </option>

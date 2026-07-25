@@ -48,7 +48,7 @@ export default async function Home() {
     {
       title: "السنين الدراسية",
       desc: "تصفح المقررات والمحتوى الخاص بكل سنة دراسية",
-      href: "/academic-years",
+      href: "/universities",
     },
     {
       title: "مسار تعلم البرمجة",
@@ -89,7 +89,7 @@ export default async function Home() {
           <p className="mt-4 text-base text-white/90 sm:text-lg">{settings.hero_subtitle}</p>
           <div className="mt-8 flex justify-center">
             <Link
-              href={user ? "/academic-years" : "/login"}
+              href={user ? "/universities" : "/login"}
               className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-navy shadow-md transition-transform hover:scale-105 hover:shadow-lg"
             >
               ابدأ الآن

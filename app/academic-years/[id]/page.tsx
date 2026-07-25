@@ -8,6 +8,7 @@ type YearRow = {
   id: number;
   year_number: number;
   name: string;
+  university_id: number | null;
 };
 
 type TermRow = {
@@ -26,7 +27,7 @@ export default async function YearDetailPage({
 
   const { data: yearData, error: yearError } = await supabase
     .from("years")
-    .select("id, year_number, name")
+    .select("id, year_number, name, university_id")
     .eq("id", id)
     .single();
 
@@ -59,10 +60,10 @@ export default async function YearDetailPage({
       <section className="flex-1 bg-white px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <Link
-            href="/academic-years"
+            href={year.university_id ? `/universities/${year.university_id}` : "/universities"}
             className="mb-8 inline-block text-sm font-medium text-navy transition-colors hover:text-turquoise"
           >
-            الرجوع للسنين الدراسية
+            الرجوع للجامعة
           </Link>
 
           {termsError && (
