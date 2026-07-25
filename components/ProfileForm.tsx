@@ -67,12 +67,12 @@ export default function ProfileForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-4 rounded-2xl border border-navy/10 bg-white p-6 shadow-sm"
+      className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
     >
-      <h2 className="text-lg font-bold text-navy">تعديل البيانات</h2>
+      <h2 className="text-lg font-bold text-ink">تعديل البيانات</h2>
 
       <div>
-        <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-navy">
+        <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-ink">
           الاسم الكامل
         </label>
         <input
@@ -81,12 +81,12 @@ export default function ProfileForm({
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+          className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
         />
       </div>
 
       <div>
-        <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-navy">
+        <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-ink">
           رقم الهاتف
         </label>
         <input
@@ -95,7 +95,7 @@ export default function ProfileForm({
           required
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
-          className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+          className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
         />
       </div>
 
@@ -105,7 +105,7 @@ export default function ProfileForm({
       <button
         type="submit"
         disabled={saving}
-        className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
+        className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
       >
         {saving ? "جارٍ الحفظ..." : "حفظ التعديلات"}
       </button>

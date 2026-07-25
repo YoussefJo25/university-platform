@@ -114,7 +114,7 @@ const tabs: { key: TabKey; label: string }[] = [
 ];
 
 const inputClasses =
-  "w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise";
+  "w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold";
 
 export default function AdminPage() {
   const supabase = createClient();
@@ -341,18 +341,18 @@ export default function AdminPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-14 text-center sm:px-6">
-        <h1 className="text-2xl font-extrabold text-white sm:text-4xl">لوحة تحكم الأدمن</h1>
-        <p className="mt-3 text-sm text-white/90 sm:text-base">
+      <section className="bg-panel border-b border-subtle px-4 py-14 text-center sm:px-6">
+        <h1 className="text-2xl font-extrabold text-ink sm:text-4xl">لوحة تحكم الأدمن</h1>
+        <p className="mt-3 text-sm text-muted sm:text-base">
           إضافة وتعديل وحذف المواد والكتب وقوائم الفيديوهات
         </p>
       </section>
 
-      <section className="flex-1 bg-white px-4 py-12 sm:px-6">
+      <section className="flex-1 bg-canvas px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-4xl">
           {isYearAdmin && managedYears.length > 0 && (
-            <div className="mb-4 flex flex-col gap-2 rounded-xl border border-turquoise/30 bg-turquoise/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-              <span className="font-medium text-navy">
+            <div className="mb-4 flex flex-col gap-2 rounded-xl border border-gold/30 bg-gold/5 p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <span className="font-medium text-ink">
                 بتدير حاليًا:{" "}
                 {managedYears.find((y) => y.id === activeManagedYearId)?.universityName}
                 {" — "}
@@ -362,7 +362,7 @@ export default function AdminPage() {
                 <select
                   value={activeManagedYearId ?? ""}
                   onChange={(e) => setActiveManagedYearId(Number(e.target.value))}
-                  className="w-full rounded-lg border border-navy/15 px-3 py-1.5 text-sm text-navy outline-none focus:border-turquoise sm:w-auto"
+                  className="w-full rounded-lg border border-subtle bg-card px-3 py-1.5 text-sm text-ink outline-none focus:border-gold sm:w-auto"
                 >
                   {managedYears.map((y) => (
                     <option key={y.id} value={y.id}>
@@ -374,7 +374,7 @@ export default function AdminPage() {
             </div>
           )}
 
-          <div className="flex w-full rounded-full border border-navy/10 bg-navy/5 p-1">
+          <div className="flex w-full rounded-full border border-subtle bg-panel p-1">
             {visibleTabs.map((tab) => (
               <button
                 key={tab.key}
@@ -383,8 +383,8 @@ export default function AdminPage() {
                 aria-pressed={activeTab === tab.key}
                 className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
                   activeTab === tab.key
-                    ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
-                    : "text-navy/70 hover:text-navy"
+                    ? "bg-gold text-gold-ink shadow-sm"
+                    : "text-muted hover:text-ink"
                 }`}
               >
                 {tab.label}
@@ -395,7 +395,7 @@ export default function AdminPage() {
           {error && <p className="mt-6 text-center text-sm text-red-600">{error}</p>}
 
           {loading ? (
-            <p className="mt-6 text-center text-sm text-navy/60">جارٍ التحميل...</p>
+            <p className="mt-6 text-center text-sm text-muted">جارٍ التحميل...</p>
           ) : (
             <div className="mt-6">
               {activeTab === "universities" && (
@@ -599,9 +599,9 @@ function UniversitiesTab({
     <div className="flex flex-col gap-8">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 rounded-2xl border border-navy/10 p-6 shadow-sm"
+        className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
       >
-        <h2 className="text-lg font-bold text-navy">
+        <h2 className="text-lg font-bold text-ink">
           {editingId ? "تعديل جامعة" : "إضافة جامعة جديدة"}
         </h2>
 
@@ -620,7 +620,7 @@ function UniversitiesTab({
           rows={3}
         />
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-navy">
+          <label className="mb-1.5 block text-sm font-medium text-ink">
             الشعار (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
           </label>
           <input
@@ -630,24 +630,24 @@ function UniversitiesTab({
             className={inputClasses}
           />
           {logoUrl && !logoFile && (
-            <p className="mt-2 text-sm text-navy/60">
+            <p className="mt-2 text-sm text-muted">
               الشعار الحالي:{" "}
               <a
                 href={logoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium text-turquoise hover:underline"
+                className="font-medium text-gold hover:underline"
               >
                 عرض
               </a>
             </p>
           )}
           {logoFile && (
-            <p className="mt-2 text-sm text-navy/60">الشعار المختار: {logoFile.name}</p>
+            <p className="mt-2 text-sm text-muted">الشعار المختار: {logoFile.name}</p>
           )}
         </div>
         <div>
-          <label className="mb-1.5 block text-sm font-medium text-navy">
+          <label className="mb-1.5 block text-sm font-medium text-ink">
             ترتيب العرض (اختياري)
           </label>
           <input
@@ -659,7 +659,7 @@ function UniversitiesTab({
         </div>
 
         {!editingId && (
-          <p className="text-xs text-navy/50">
+          <p className="text-xs text-muted">
             هيتم إنشاء 4 فرق دراسية (الأولى إلى الرابعة) وترمين لكل فرقة تلقائيًا عند الإضافة.
           </p>
         )}
@@ -670,7 +670,7 @@ function UniversitiesTab({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
           >
             {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
           </button>
@@ -678,7 +678,7 @@ function UniversitiesTab({
             <button
               type="button"
               onClick={resetForm}
-              className="text-sm font-medium text-navy/60 hover:text-navy"
+              className="text-sm font-medium text-muted hover:text-ink"
             >
               إلغاء
             </button>
@@ -688,24 +688,24 @@ function UniversitiesTab({
 
       <ul className="flex flex-col gap-3">
         {universities.length === 0 ? (
-          <p className="text-sm text-navy/60">لا توجد جامعات مضافة بعد</p>
+          <p className="text-sm text-muted">لا توجد جامعات مضافة بعد</p>
         ) : (
           universities.map((university) => (
             <li
               key={university.id}
-              className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-xl border border-subtle bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <p className="font-semibold text-navy">{university.name}</p>
+                <p className="font-semibold text-ink">{university.name}</p>
                 {university.description && (
-                  <p className="text-sm text-navy/60">{university.description}</p>
+                  <p className="text-sm text-muted">{university.description}</p>
                 )}
               </div>
               <div className="flex gap-3">
                 <button
                   type="button"
                   onClick={() => startEdit(university)}
-                  className="text-sm font-medium text-turquoise hover:underline"
+                  className="text-sm font-medium text-gold hover:underline"
                 >
                   تعديل
                 </button>
@@ -812,27 +812,27 @@ function UsersTab({
 
       <ul className="flex flex-col gap-3">
         {profiles.length === 0 ? (
-          <p className="text-sm text-navy/60">لا يوجد مستخدمين مسجلين بعد</p>
+          <p className="text-sm text-muted">لا يوجد مستخدمين مسجلين بعد</p>
         ) : (
           profiles.map((profile) => {
             const assignments = yearManagers.filter((ym) => ym.profile_id === profile.id);
             const isAssigning = assigningUserId === profile.id;
 
             return (
-              <li key={profile.id} className="rounded-xl border border-navy/10 p-4">
+              <li key={profile.id} className="rounded-xl border border-subtle bg-card p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="font-semibold text-navy">
+                    <p className="font-semibold text-ink">
                       {profile.full_name || profile.email}
                     </p>
-                    <p className="text-sm text-navy/60">{profile.email}</p>
-                    {profile.phone && <p className="text-sm text-navy/60">{profile.phone}</p>}
-                    <p className="mt-1 text-xs text-navy/50">
+                    <p className="text-sm text-muted">{profile.email}</p>
+                    {profile.phone && <p className="text-sm text-muted">{profile.phone}</p>}
+                    <p className="mt-1 text-xs text-muted">
                       {new Date(profile.created_at).toLocaleDateString("ar-EG")}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="inline-flex items-center rounded-full bg-turquoise/10 px-3 py-1 text-xs font-semibold text-turquoise">
+                    <span className="inline-flex items-center rounded-full bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
                       {ROLE_LABELS[profile.role] ?? profile.role}
                     </span>
                     {profile.role !== "super_admin" && (
@@ -840,7 +840,7 @@ function UsersTab({
                         type="button"
                         disabled={busyUserId === profile.id}
                         onClick={() => startAssign(profile.id)}
-                        className="text-sm font-medium text-turquoise hover:underline disabled:opacity-60"
+                        className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
                       >
                         {profile.role === "year_admin" ? "تعيين على فرقة إضافية" : "تعيين كأدمن فرقة"}
                       </button>
@@ -849,13 +849,13 @@ function UsersTab({
                 </div>
 
                 {profile.role === "year_admin" && assignments.length > 0 && (
-                  <ul className="mt-3 flex flex-col gap-2 border-t border-navy/10 pt-3">
+                  <ul className="mt-3 flex flex-col gap-2 border-t border-subtle bg-card pt-3">
                     {assignments.map((assignment) => (
                       <li
                         key={assignment.id}
                         className="flex items-center justify-between gap-3 text-sm"
                       >
-                        <span className="text-navy/80">
+                        <span className="text-muted">
                           {assignment.years?.universities?.name} — {assignment.years?.name}
                         </span>
                         <button
@@ -874,10 +874,10 @@ function UsersTab({
                 {isAssigning && (
                   <form
                     onSubmit={handleAssignSubmit}
-                    className="mt-3 flex flex-col gap-3 rounded-lg bg-navy/5 p-3 sm:flex-row sm:items-end"
+                    className="mt-3 flex flex-col gap-3 rounded-lg bg-panel p-3 sm:flex-row sm:items-end"
                   >
                     <div className="flex-1">
-                      <label className="mb-1 block text-xs font-medium text-navy">الجامعة</label>
+                      <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
                       <select
                         value={assignUniversityId}
                         onChange={(e) => {
@@ -894,7 +894,7 @@ function UsersTab({
                       </select>
                     </div>
                     <div className="flex-1">
-                      <label className="mb-1 block text-xs font-medium text-navy">الفرقة</label>
+                      <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
                       <select
                         value={assignYearId}
                         onChange={(e) => setAssignYearId(e.target.value)}
@@ -914,14 +914,14 @@ function UsersTab({
                       <button
                         type="submit"
                         disabled={busyUserId === profile.id || !assignYearId}
-                        className="rounded-full bg-gradient-to-l from-navy to-turquoise px-4 py-2 text-xs font-semibold text-white shadow-sm disabled:opacity-60"
+                        className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
                       >
                         حفظ
                       </button>
                       <button
                         type="button"
                         onClick={cancelAssign}
-                        className="text-xs font-medium text-navy/60 hover:text-navy"
+                        className="text-xs font-medium text-muted hover:text-ink"
                       >
                         إلغاء
                       </button>
@@ -1083,15 +1083,15 @@ function CoursesTab({
     <div className="flex flex-col gap-8">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 rounded-2xl border border-navy/10 p-6 shadow-sm"
+        className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
       >
-        <h2 className="text-lg font-bold text-navy">
+        <h2 className="text-lg font-bold text-ink">
           {editingId ? "تعديل مادة" : "إضافة مادة جديدة"}
         </h2>
 
         {!restrictToAcademic && (
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">نوع المحتوى</label>
+            <label className="mb-1.5 block text-sm font-medium text-ink">نوع المحتوى</label>
             <select
               required
               value={form.category}
@@ -1166,7 +1166,7 @@ function CoursesTab({
 
         {!isAcademic && (
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               قسم أب (اختياري)
             </label>
             <select
@@ -1188,7 +1188,7 @@ function CoursesTab({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
           >
             {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
           </button>
@@ -1196,7 +1196,7 @@ function CoursesTab({
             <button
               type="button"
               onClick={resetForm}
-              className="text-sm font-medium text-navy/60 hover:text-navy"
+              className="text-sm font-medium text-muted hover:text-ink"
             >
               إلغاء
             </button>
@@ -1208,12 +1208,12 @@ function CoursesTab({
         {courses.map((course) => (
           <li
             key={course.id}
-            className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-xl border border-subtle bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <p className="font-semibold text-navy">{course.name}</p>
+              <p className="font-semibold text-ink">{course.name}</p>
               {course.category === "learning_path" ? (
-                <span className="mt-1 inline-flex items-center rounded-full bg-turquoise/10 px-2 py-0.5 text-xs font-semibold text-turquoise">
+                <span className="mt-1 inline-flex items-center rounded-full bg-gold/10 px-2 py-0.5 text-xs font-semibold text-gold">
                   {course.parent_course_id
                     ? `تابع لـ ${
                         courses.find((c) => c.id === course.parent_course_id)?.name ?? "؟"
@@ -1221,7 +1221,7 @@ function CoursesTab({
                     : "مسار تعلم برمجة"}
                 </span>
               ) : (
-                <p className="text-sm text-navy/60">
+                <p className="text-sm text-muted">
                   {years.find((y) => y.id === course.year_id)?.name}
                   {course.term_id &&
                     ` — ${terms.find((t) => t.id === course.term_id)?.name ?? ""}`}
@@ -1232,7 +1232,7 @@ function CoursesTab({
               <button
                 type="button"
                 onClick={() => startEdit(course)}
-                className="text-sm font-medium text-turquoise hover:underline"
+                className="text-sm font-medium text-gold hover:underline"
               >
                 تعديل
               </button>
@@ -1294,13 +1294,13 @@ function BooksTab({
       />
 
       {selectedFolder && (
-        <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
+        <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-navy">ملفات فولدر: {selectedFolder.name}</h2>
+            <h2 className="text-lg font-bold text-ink">ملفات فولدر: {selectedFolder.name}</h2>
             <button
               type="button"
               onClick={() => setSelectedFolderId(null)}
-              className="text-sm font-medium text-navy/60 hover:text-navy"
+              className="text-sm font-medium text-muted hover:text-ink"
             >
               إغلاق
             </button>
@@ -1317,9 +1317,9 @@ function BooksTab({
       )}
 
       {unfiledBooks.length > 0 && (
-        <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-navy">ملفات عامة (بدون فولدر)</h2>
-          <p className="mt-1 text-sm text-navy/60">
+        <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-ink">ملفات عامة (بدون فولدر)</h2>
+          <p className="mt-1 text-sm text-muted">
             ملفات اتضافت قبل نظام الفولدرات، لسه موجودة ومتاحة للطلاب.
           </p>
           <BookList
@@ -1408,9 +1408,9 @@ function FolderManager({
   }
 
   return (
-    <div className="flex flex-col gap-6 rounded-2xl border border-navy/10 p-6 shadow-sm">
+    <div className="flex flex-col gap-6 rounded-2xl border border-subtle bg-card p-6 shadow-sm">
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <h2 className="text-lg font-bold text-navy">
+        <h2 className="text-lg font-bold text-ink">
           {editingId ? "تعديل فولدر" : "إضافة فولدر جديد"}
         </h2>
 
@@ -1438,7 +1438,7 @@ function FolderManager({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
           >
             {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة فولدر"}
           </button>
@@ -1446,7 +1446,7 @@ function FolderManager({
             <button
               type="button"
               onClick={resetForm}
-              className="text-sm font-medium text-navy/60 hover:text-navy"
+              className="text-sm font-medium text-muted hover:text-ink"
             >
               إلغاء
             </button>
@@ -1456,18 +1456,18 @@ function FolderManager({
 
       <ul className="flex flex-col gap-3">
         {folders.length === 0 ? (
-          <p className="text-sm text-navy/60">لا توجد فولدرات مضافة بعد</p>
+          <p className="text-sm text-muted">لا توجد فولدرات مضافة بعد</p>
         ) : (
           folders.map((folder) => (
             <li
               key={folder.id}
               className={`flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
-                folder.id === selectedFolderId ? "border-turquoise bg-turquoise/5" : "border-navy/10"
+                folder.id === selectedFolderId ? "border-gold bg-gold/5" : "border-subtle bg-card"
               }`}
             >
               <div>
-                <p className="font-semibold text-navy">{folder.name}</p>
-                <p className="text-sm text-navy/60">
+                <p className="font-semibold text-ink">{folder.name}</p>
+                <p className="text-sm text-muted">
                   {courses.find((c) => c.id === folder.course_id)?.name}
                 </p>
               </div>
@@ -1475,14 +1475,14 @@ function FolderManager({
                 <button
                   type="button"
                   onClick={() => onSelectFolder(folder.id === selectedFolderId ? null : folder.id)}
-                  className="text-sm font-medium text-turquoise hover:underline"
+                  className="text-sm font-medium text-gold hover:underline"
                 >
                   {folder.id === selectedFolderId ? "إخفاء الملفات" : "إدارة الملفات"}
                 </button>
                 <button
                   type="button"
                   onClick={() => startEdit(folder)}
-                  className="text-sm font-medium text-turquoise hover:underline"
+                  className="text-sm font-medium text-gold hover:underline"
                 >
                   تعديل
                 </button>
@@ -1590,7 +1590,7 @@ function BookUploadForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-4 rounded-xl border border-navy/10 bg-navy/5 p-4"
+      className="flex flex-col gap-4 rounded-xl border border-subtle bg-panel p-4"
     >
       <input
         required
@@ -1606,7 +1606,7 @@ function BookUploadForm({
         className={inputClasses}
       />
       <div>
-        <label htmlFor={`book-file-${folder.id}`} className="mb-1.5 block text-sm font-medium text-navy">
+        <label htmlFor={`book-file-${folder.id}`} className="mb-1.5 block text-sm font-medium text-ink">
           ملف PDF (بحد أقصى 20 ميجابايت)
         </label>
         <input
@@ -1616,7 +1616,7 @@ function BookUploadForm({
           onChange={handleFileChange}
           className={inputClasses}
         />
-        {file && <p className="mt-2 text-sm text-navy/60">الملف المختار: {file.name}</p>}
+        {file && <p className="mt-2 text-sm text-muted">الملف المختار: {file.name}</p>}
       </div>
 
       {formError && <p className="text-sm text-red-600">{formError}</p>}
@@ -1624,7 +1624,7 @@ function BookUploadForm({
       <button
         type="submit"
         disabled={saving}
-        className="inline-flex w-fit items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+        className="inline-flex w-fit items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
       >
         {saving ? "جارٍ الرفع..." : "رفع الملف"}
       </button>
@@ -1644,7 +1644,7 @@ function BookList({
   courses?: Course[];
 }) {
   if (books.length === 0) {
-    return emptyMessage ? <p className="mt-4 text-sm text-navy/60">{emptyMessage}</p> : null;
+    return emptyMessage ? <p className="mt-4 text-sm text-muted">{emptyMessage}</p> : null;
   }
 
   return (
@@ -1652,13 +1652,13 @@ function BookList({
       {books.map((book) => (
         <li
           key={book.id}
-          className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-subtle bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
         >
           <div>
-            <p className="font-semibold text-navy">{book.title}</p>
-            {book.author && <p className="text-sm text-navy/60">{book.author}</p>}
+            <p className="font-semibold text-ink">{book.title}</p>
+            {book.author && <p className="text-sm text-muted">{book.author}</p>}
             {courses && (
-              <p className="text-sm text-navy/60">
+              <p className="text-sm text-muted">
                 {courses.find((c) => c.id === book.course_id)?.name}
               </p>
             )}
@@ -1669,7 +1669,7 @@ function BookList({
                 href={book.file_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-medium text-turquoise hover:underline"
+                className="text-sm font-medium text-gold hover:underline"
               >
                 تحميل
               </a>
@@ -1771,9 +1771,9 @@ function PlaylistsTab({
     <div className="flex flex-col gap-8">
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-4 rounded-2xl border border-navy/10 p-6 shadow-sm"
+        className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
       >
-        <h2 className="text-lg font-bold text-navy">
+        <h2 className="text-lg font-bold text-ink">
           {editingId ? "تعديل قائمة تشغيل" : "إضافة قائمة تشغيل جديدة"}
         </h2>
 
@@ -1804,7 +1804,7 @@ function PlaylistsTab({
           ))}
         </select>
         <div>
-          <label htmlFor="order_index" className="mb-1.5 block text-sm font-medium text-navy">
+          <label htmlFor="order_index" className="mb-1.5 block text-sm font-medium text-ink">
             ترتيب العرض (اختياري)
           </label>
           <input
@@ -1817,7 +1817,7 @@ function PlaylistsTab({
           />
         </div>
         <div>
-          <label htmlFor="group_name" className="mb-1.5 block text-sm font-medium text-navy">
+          <label htmlFor="group_name" className="mb-1.5 block text-sm font-medium text-ink">
             اسم المصدر/القناة (اختياري)
           </label>
           <input
@@ -1827,7 +1827,7 @@ function PlaylistsTab({
             onChange={(e) => setForm({ ...form, group_name: e.target.value })}
             className={inputClasses}
           />
-          <p className="mt-1.5 text-xs text-navy/50">
+          <p className="mt-1.5 text-xs text-muted">
             لو كتبت نفس الاسم في أكتر من قايمة تشغيل، هيتجمعوا تحت اسم واحد جواه سهم في صفحة
             المادة.
           </p>
@@ -1837,7 +1837,7 @@ function PlaylistsTab({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
           >
             {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
           </button>
@@ -1845,7 +1845,7 @@ function PlaylistsTab({
             <button
               type="button"
               onClick={resetForm}
-              className="text-sm font-medium text-navy/60 hover:text-navy"
+              className="text-sm font-medium text-muted hover:text-ink"
             >
               إلغاء
             </button>
@@ -1857,21 +1857,21 @@ function PlaylistsTab({
         {playlists.map((playlist) => (
           <li
             key={playlist.id}
-            className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-xl border border-subtle bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
-              <p className="font-semibold text-navy">{playlist.title}</p>
-              <p className="text-sm text-navy/60">
+              <p className="font-semibold text-ink">{playlist.title}</p>
+              <p className="text-sm text-muted">
                 {courses.find((c) => c.id === playlist.course_id)?.name}
                 {playlist.group_name && (
-                  <span className="mr-2 inline-flex items-center rounded-full bg-turquoise/10 px-2 py-0.5 text-xs font-semibold text-turquoise">
+                  <span className="mr-2 inline-flex items-center rounded-full bg-gold/10 px-2 py-0.5 text-xs font-semibold text-gold">
                     {playlist.group_name}
                   </span>
                 )}
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-navy/60">
+              <label className="flex items-center gap-2 text-sm text-muted">
                 الترتيب
                 <input
                   type="number"
@@ -1880,13 +1880,13 @@ function PlaylistsTab({
                     const value = Number(e.target.value) || 0;
                     if (value !== playlist.order_index) handleReorder(playlist.id, value);
                   }}
-                  className="w-16 rounded-lg border border-navy/15 px-2 py-1 text-sm text-navy outline-none focus:border-turquoise"
+                  className="w-16 rounded-lg border border-subtle bg-card px-2 py-1 text-sm text-ink outline-none focus:border-gold"
                 />
               </label>
               <button
                 type="button"
                 onClick={() => startEdit(playlist)}
-                className="text-sm font-medium text-turquoise hover:underline"
+                className="text-sm font-medium text-gold hover:underline"
               >
                 تعديل
               </button>
@@ -2010,11 +2010,11 @@ function SettingsTab({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-8">
-      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-navy">الهوية</h2>
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-ink">الهوية</h2>
         <div className="mt-4 flex flex-col gap-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">اسم الجامعة</label>
+            <label className="mb-1.5 block text-sm font-medium text-ink">اسم الجامعة</label>
             <input
               required
               value={form.university_name}
@@ -2023,7 +2023,7 @@ function SettingsTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               اللوجو (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
             </label>
             <input
@@ -2033,30 +2033,30 @@ function SettingsTab({
               className={inputClasses}
             />
             {form.logo_url && !logoFile && (
-              <p className="mt-2 text-sm text-navy/60">
+              <p className="mt-2 text-sm text-muted">
                 اللوجو الحالي:{" "}
                 <a
                   href={form.logo_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-turquoise hover:underline"
+                  className="font-medium text-gold hover:underline"
                 >
                   عرض
                 </a>
               </p>
             )}
             {logoFile && (
-              <p className="mt-2 text-sm text-navy/60">اللوجو المختار: {logoFile.name}</p>
+              <p className="mt-2 text-sm text-muted">اللوجو المختار: {logoFile.name}</p>
             )}
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-navy">الصفحة الرئيسية</h2>
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-ink">الصفحة الرئيسية</h2>
         <div className="mt-4 flex flex-col gap-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               عنوان الـ Hero ({form.hero_title.length}/100)
             </label>
             <input
@@ -2068,7 +2068,7 @@ function SettingsTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               الوصف ({form.hero_subtitle.length}/300)
             </label>
             <textarea
@@ -2083,11 +2083,11 @@ function SettingsTab({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-navy">التواصل</h2>
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-ink">التواصل</h2>
         <div className="mt-4 flex flex-col gap-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               إيميل الدعم الفني
             </label>
             <input
@@ -2099,7 +2099,7 @@ function SettingsTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               رقم الهاتف (اختياري)
             </label>
             <input
@@ -2109,7 +2109,7 @@ function SettingsTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               رابط فيسبوك (اختياري)
             </label>
             <input
@@ -2119,7 +2119,7 @@ function SettingsTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               رابط تويتر (اختياري)
             </label>
             <input
@@ -2129,7 +2129,7 @@ function SettingsTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               رابط انستجرام (اختياري)
             </label>
             <input
@@ -2139,7 +2139,7 @@ function SettingsTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               رقم الواتساب (اختياري)
             </label>
             <input
@@ -2148,17 +2148,17 @@ function SettingsTab({
               className={inputClasses}
               placeholder="201012345678"
             />
-            <p className="mt-1.5 text-xs text-navy/50">
+            <p className="mt-1.5 text-xs text-muted">
               أدخل الرقم بالصيغة الدولية بدون + أو مسافات، مثال: 201012345678
             </p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-navy">الفوتر</h2>
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-ink">الفوتر</h2>
         <div className="mt-4">
-          <label className="mb-1.5 block text-sm font-medium text-navy">نص حقوق الملكية</label>
+          <label className="mb-1.5 block text-sm font-medium text-ink">نص حقوق الملكية</label>
           <input
             required
             value={form.footer_text}
@@ -2175,7 +2175,7 @@ function SettingsTab({
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
         >
           {saving ? "جارٍ الحفظ..." : "حفظ الإعدادات"}
         </button>
@@ -2397,11 +2397,11 @@ function LeadershipTab({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-8">
       {ROLE_ORDER.map((roleKey) => (
-        <div key={roleKey} className="rounded-2xl border border-navy/10 p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-navy">{ROLE_FALLBACK_TITLE[roleKey]}</h2>
+        <div key={roleKey} className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-ink">{ROLE_FALLBACK_TITLE[roleKey]}</h2>
           <div className="mt-4 flex flex-col gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-navy">الاسم</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">الاسم</label>
               <input
                 required
                 value={memberForms[roleKey].name}
@@ -2410,7 +2410,7 @@ function LeadershipTab({
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-navy">المسمى</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink">المسمى</label>
               <input
                 value={memberForms[roleKey].title}
                 onChange={(e) => updateMemberField(roleKey, "title", e.target.value)}
@@ -2418,7 +2418,7 @@ function LeadershipTab({
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-navy">
+              <label className="mb-1.5 block text-sm font-medium text-ink">
                 نبذة ({memberForms[roleKey].bio.length}/{MAX_BIO_LENGTH})
               </label>
               <textarea
@@ -2430,7 +2430,7 @@ function LeadershipTab({
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-navy">
+              <label className="mb-1.5 block text-sm font-medium text-ink">
                 الصورة (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
               </label>
               <input
@@ -2440,20 +2440,20 @@ function LeadershipTab({
                 className={inputClasses}
               />
               {memberForms[roleKey].photo_url && !memberFiles[roleKey] && (
-                <p className="mt-2 text-sm text-navy/60">
+                <p className="mt-2 text-sm text-muted">
                   الصورة الحالية:{" "}
                   <a
                     href={memberForms[roleKey].photo_url ?? undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-turquoise hover:underline"
+                    className="font-medium text-gold hover:underline"
                   >
                     عرض
                   </a>
                 </p>
               )}
               {memberFiles[roleKey] && (
-                <p className="mt-2 text-sm text-navy/60">
+                <p className="mt-2 text-sm text-muted">
                   الصورة المختارة: {memberFiles[roleKey]?.name}
                 </p>
               )}
@@ -2462,11 +2462,11 @@ function LeadershipTab({
         </div>
       ))}
 
-      <div className="rounded-2xl border border-navy/10 p-6 shadow-sm">
-        <h2 className="text-lg font-bold text-navy">نبذة عن الجامعة</h2>
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-ink">نبذة عن الجامعة</h2>
         <div className="mt-4 flex flex-col gap-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               سنة التأسيس (اختياري)
             </label>
             <input
@@ -2480,7 +2480,7 @@ function LeadershipTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               النص ({aboutText.length}/{MAX_ABOUT_LENGTH})
             </label>
             <textarea
@@ -2495,7 +2495,7 @@ function LeadershipTab({
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-navy">
+            <label className="mb-1.5 block text-sm font-medium text-ink">
               صورة مبنى الكلية (PNG أو JPEG أو WebP، بحد أقصى 2 ميجابايت)
             </label>
             <input
@@ -2505,20 +2505,20 @@ function LeadershipTab({
               className={inputClasses}
             />
             {buildingPhotoUrl && !buildingFile && (
-              <p className="mt-2 text-sm text-navy/60">
+              <p className="mt-2 text-sm text-muted">
                 الصورة الحالية:{" "}
                 <a
                   href={buildingPhotoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-turquoise hover:underline"
+                  className="font-medium text-gold hover:underline"
                 >
                   عرض
                 </a>
               </p>
             )}
             {buildingFile && (
-              <p className="mt-2 text-sm text-navy/60">الصورة المختارة: {buildingFile.name}</p>
+              <p className="mt-2 text-sm text-muted">الصورة المختارة: {buildingFile.name}</p>
             )}
           </div>
         </div>
@@ -2531,7 +2531,7 @@ function LeadershipTab({
         <button
           type="submit"
           disabled={saving}
-          className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
         >
           {saving ? "جارٍ الحفظ..." : "حفظ"}
         </button>

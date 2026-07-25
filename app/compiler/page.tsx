@@ -165,18 +165,18 @@ export default function CompilerPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-10 text-center sm:px-6">
-        <h1 className="text-2xl font-extrabold text-white sm:text-4xl">كمبايلر أونلاين</h1>
-        <p className="mt-3 text-sm text-white/90 sm:text-base">
+      <section className="bg-panel border-b border-subtle px-4 py-10 text-center sm:px-6">
+        <h1 className="text-2xl font-extrabold text-ink sm:text-4xl">كمبايلر أونلاين</h1>
+        <p className="mt-3 text-sm text-muted sm:text-base">
           اكتب كودك وشغّله فورًا من غير ما تحتاج أي إعداد
         </p>
       </section>
 
-      <section className="flex-1 bg-white px-4 py-8 sm:px-6">
+      <section className="flex-1 bg-canvas px-4 py-8 sm:px-6">
         <div className="mx-auto flex max-w-6xl flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <label htmlFor="language" className="text-sm font-medium text-navy">
+              <label htmlFor="language" className="text-sm font-medium text-ink">
                 اللغة
               </label>
               <select
@@ -184,7 +184,7 @@ export default function CompilerPage() {
                 value={selectedId ?? ""}
                 onChange={(e) => handleLanguageChange(e.target.value)}
                 disabled={loadingLanguages || languages.length === 0}
-                className="rounded-xl border border-navy/15 px-4 py-2 text-sm text-navy outline-none transition-colors focus:border-turquoise disabled:opacity-60"
+                className="rounded-xl border border-subtle bg-card px-4 py-2 text-sm text-ink outline-none transition-colors focus:border-gold disabled:opacity-60"
               >
                 {loadingLanguages && <option>جارٍ تحميل اللغات...</option>}
                 {!loadingLanguages && languages.length === 0 && <option>لا توجد لغات متاحة</option>}
@@ -200,7 +200,7 @@ export default function CompilerPage() {
               type="button"
               onClick={handleRun}
               disabled={running || loadingLanguages || !selectedLanguage}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
             >
               {running ? "جارٍ التشغيل..." : "تشغيل ▶"}
             </button>
@@ -212,7 +212,7 @@ export default function CompilerPage() {
             </p>
           )}
 
-          <div className="overflow-hidden rounded-2xl border border-navy/10 shadow-sm">
+          <div className="overflow-hidden rounded-2xl border border-subtle bg-card shadow-sm">
             <Editor
               height="55vh"
               language={selectedLanguage ? getMonacoLanguage(selectedLanguage.name) : "plaintext"}
@@ -223,7 +223,7 @@ export default function CompilerPage() {
             />
           </div>
 
-          <p className={`text-xs ${code.length > MAX_CODE_LENGTH ? "text-red-600" : "text-navy/50"}`}>
+          <p className={`text-xs ${code.length > MAX_CODE_LENGTH ? "text-red-600" : "text-muted"}`}>
             {code.length.toLocaleString("ar-EG")} / {MAX_CODE_LENGTH.toLocaleString("ar-EG")} حرف
           </p>
 
@@ -235,14 +235,14 @@ export default function CompilerPage() {
 
           {result && (
             <div className="flex flex-col gap-4 sm:flex-row">
-              <div className="flex-1 rounded-2xl border border-navy/10 bg-navy/5 p-4">
-                <h2 className="mb-2 text-sm font-bold text-navy">المخرجات</h2>
+              <div className="flex-1 rounded-2xl border border-subtle bg-panel p-4">
+                <h2 className="mb-2 text-sm font-bold text-ink">المخرجات</h2>
                 {result.status.description !== "Accepted" && (
-                  <p className="mb-2 text-xs font-medium text-navy/60">
+                  <p className="mb-2 text-xs font-medium text-muted">
                     الحالة: {result.status.description}
                   </p>
                 )}
-                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-sm text-navy/80">
+                <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-sm text-muted">
                   {result.stdout || "لا يوجد مخرجات"}
                 </pre>
               </div>

@@ -233,22 +233,22 @@ export default async function CourseDetailPage({
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-14 text-center sm:px-6">
+      <section className="bg-panel border-b border-subtle px-4 py-14 text-center sm:px-6">
         {course.category === "learning_path" ? (
-          <p className="text-xs font-medium text-white/70 sm:text-sm">مسار تعلم البرمجة</p>
+          <p className="text-xs font-medium text-muted sm:text-sm">مسار تعلم البرمجة</p>
         ) : (
           course.years && (
-            <p className="text-xs font-medium text-white/70 sm:text-sm">{course.years.name}</p>
+            <p className="text-xs font-medium text-muted sm:text-sm">{course.years.name}</p>
           )
         )}
-        <h1 className="mt-2 text-2xl font-extrabold text-white sm:text-4xl">{course.name}</h1>
+        <h1 className="mt-2 text-2xl font-extrabold text-ink sm:text-4xl">{course.name}</h1>
       </section>
 
-      <section className="flex-1 bg-white px-4 py-12 sm:px-6">
+      <section className="flex-1 bg-canvas px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <Link
             href={backLink.href}
-            className="mb-8 inline-block text-sm font-medium text-navy transition-colors hover:text-turquoise"
+            className="mb-8 inline-block text-sm font-medium text-ink transition-colors hover:text-gold"
           >
             {backLink.label}
           </Link>
@@ -256,18 +256,18 @@ export default async function CourseDetailPage({
           {hasChildren ? (
             <div>
               {course.description && (
-                <p className="mb-8 text-sm leading-7 text-navy/70">{course.description}</p>
+                <p className="mb-8 text-sm leading-7 text-muted">{course.description}</p>
               )}
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 {children.map((child) => (
                   <Link
                     key={child.id}
                     href={`/courses/${child.id}`}
-                    className="rounded-2xl border border-navy/10 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+                    className="rounded-2xl border border-subtle bg-card p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                   >
-                    <h2 className="text-lg font-bold text-navy">{child.name}</h2>
+                    <h2 className="text-lg font-bold text-ink">{child.name}</h2>
                     {child.description && (
-                      <p className="mt-2 text-sm text-navy/70">{child.description}</p>
+                      <p className="mt-2 text-sm text-muted">{child.description}</p>
                     )}
                   </Link>
                 ))}

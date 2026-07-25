@@ -82,16 +82,26 @@ export default async function Home() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-20 text-center sm:px-6">
+      <section className="border-b border-subtle bg-panel px-4 py-24 text-center sm:px-6">
         <div className="mx-auto max-w-3xl">
-          <h1 className="text-3xl font-extrabold text-white sm:text-5xl">
-            {user ? `أهلاً بيك يا ${displayName}` : settings.hero_title}
+          <span className="inline-flex items-center gap-2 rounded-full border border-gold/50 bg-canvas/40 px-4 py-1.5 text-xs font-semibold tracking-wide text-gold">
+            <span className="h-1.5 w-1.5 rounded-full bg-gold" />
+            المنصة الإلكترونية الرسمية
+          </span>
+          <h1 className="mt-5 text-3xl font-extrabold text-ink sm:text-5xl">
+            {user ? (
+              <>
+                أهلاً بيك يا <span className="italic text-gold">{displayName}</span>
+              </>
+            ) : (
+              settings.hero_title
+            )}
           </h1>
-          <p className="mt-4 text-base text-white/90 sm:text-lg">{settings.hero_subtitle}</p>
+          <p className="mt-4 text-base text-muted sm:text-lg">{settings.hero_subtitle}</p>
           <div className="mt-8 flex justify-center">
             <Link
               href={user ? "/universities" : "/login"}
-              className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-navy shadow-md transition-transform hover:scale-105 hover:shadow-lg"
+              className="inline-flex items-center justify-center rounded-full bg-gold px-6 py-3 text-sm font-semibold text-gold-ink shadow-md transition-transform hover:scale-105 hover:shadow-lg"
             >
               ابدأ الآن
             </Link>
@@ -99,16 +109,16 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="bg-white px-4 py-16 sm:px-6">
+      <section className="bg-canvas px-4 py-16 sm:px-6">
         <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((item) => (
             <Link
               key={item.title}
               href={item.href}
-              className="rounded-2xl border border-navy/10 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+              className="rounded-2xl border border-subtle bg-card p-6 shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
             >
-              <h2 className="text-lg font-bold text-navy">{item.title}</h2>
-              <p className="mt-2 text-sm text-navy/70">{item.desc}</p>
+              <h2 className="text-lg font-bold text-ink">{item.title}</h2>
+              <p className="mt-2 text-sm text-muted">{item.desc}</p>
             </Link>
           ))}
         </div>
@@ -120,9 +130,9 @@ export default async function Home() {
         )}
       </section>
 
-      <section className="bg-navy/[0.02] px-4 py-16 sm:px-6">
+      <section className="border-t border-subtle bg-panel px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center text-2xl font-extrabold text-navy sm:text-3xl">
+          <h2 className="text-center text-2xl font-extrabold text-ink sm:text-3xl">
             القيادة والفريق
           </h2>
 
@@ -130,7 +140,7 @@ export default async function Home() {
             {orderedMembers.map((member) => (
               <div
                 key={member.role_key}
-                className="flex flex-col items-center gap-4 rounded-2xl border border-navy/10 bg-white p-6 text-center shadow-sm"
+                className="flex flex-col items-center gap-4 rounded-2xl border border-subtle bg-card p-6 text-center shadow-sm"
               >
                 {member.photo_url ? (
                   <Image
@@ -141,17 +151,17 @@ export default async function Home() {
                     className="h-24 w-24 rounded-full object-cover shadow-sm"
                   />
                 ) : (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise text-3xl font-bold text-white shadow-sm">
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-gold bg-panel text-3xl font-bold text-gold">
                     {(member.name || "؟").trim().charAt(0)}
                   </div>
                 )}
                 <div>
-                  <h3 className="text-lg font-bold text-navy">{member.name || "—"}</h3>
-                  <p className="mt-1 text-sm font-medium text-turquoise">
+                  <h3 className="text-lg font-bold text-ink">{member.name || "—"}</h3>
+                  <p className="mt-1 text-sm font-medium text-gold">
                     {member.title || ROLE_FALLBACK_TITLE[member.role_key]}
                   </p>
                   {member.bio && (
-                    <p className="mt-3 text-sm leading-6 text-navy/70">{member.bio}</p>
+                    <p className="mt-3 text-sm leading-6 text-muted">{member.bio}</p>
                   )}
                 </div>
               </div>
@@ -159,7 +169,7 @@ export default async function Home() {
           </div>
 
           {settings.about_university_text && (
-            <div className="mt-10 overflow-hidden rounded-2xl border border-navy/10 bg-white shadow-sm">
+            <div className="mt-10 overflow-hidden rounded-2xl border border-subtle bg-card shadow-sm">
               <div className="flex flex-col sm:flex-row">
                 {settings.college_building_photo_url && (
                   <div className="relative h-56 w-full shrink-0 sm:h-72 sm:w-1/2">
@@ -172,11 +182,11 @@ export default async function Home() {
                   </div>
                 )}
                 <div className="flex flex-col justify-center p-6 sm:p-8">
-                  <h3 className="text-lg font-bold text-navy">
+                  <h3 className="text-lg font-bold text-ink">
                     نبذة عن الجامعة
                     {settings.founding_year && ` — تأسست ${settings.founding_year}`}
                   </h3>
-                  <p className="mt-3 text-sm leading-7 text-navy/70">
+                  <p className="mt-3 text-sm leading-7 text-muted">
                     {settings.about_university_text}
                   </p>
                 </div>

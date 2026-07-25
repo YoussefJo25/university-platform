@@ -47,21 +47,21 @@ export default async function YearDetailPage({
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-14 text-center sm:px-6">
-        <span className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/15 text-2xl font-bold text-white">
+      <section className="bg-panel border-b border-subtle px-4 py-14 text-center sm:px-6">
+        <span className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border-2 border-gold bg-card text-2xl font-bold text-gold">
           {year.year_number}
         </span>
-        <h1 className="text-2xl font-extrabold text-white sm:text-4xl">{year.name}</h1>
-        <p className="mt-3 text-sm text-white/90 sm:text-base">
+        <h1 className="text-2xl font-extrabold text-ink sm:text-4xl">{year.name}</h1>
+        <p className="mt-3 text-sm text-muted sm:text-base">
           اختر الترم الدراسي للاطلاع على مواده
         </p>
       </section>
 
-      <section className="flex-1 bg-white px-4 py-12 sm:px-6">
+      <section className="flex-1 bg-canvas px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-4xl">
           <Link
             href={year.university_id ? `/universities/${year.university_id}` : "/universities"}
-            className="mb-8 inline-block text-sm font-medium text-navy transition-colors hover:text-turquoise"
+            className="mb-8 inline-block text-sm font-medium text-ink transition-colors hover:text-gold"
           >
             الرجوع للجامعة
           </Link>
@@ -71,7 +71,7 @@ export default async function YearDetailPage({
           )}
 
           {!termsError && terms.length === 0 && (
-            <p className="text-center text-sm text-navy/60">
+            <p className="text-center text-sm text-muted">
               لا توجد ترمين مضافين لهذه السنة حاليًا.
             </p>
           )}
@@ -82,14 +82,14 @@ export default async function YearDetailPage({
                 <Link
                   key={term.id}
                   href={`/academic-years/${id}/terms/${term.id}`}
-                  className="flex flex-col items-center gap-4 rounded-2xl border border-navy/10 bg-white p-6 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
+                  className="flex flex-col items-center gap-4 rounded-2xl border border-subtle bg-card p-6 text-center shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg"
                 >
-                  <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise text-2xl font-bold text-white">
+                  <span className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-gold bg-card text-2xl font-bold text-gold">
                     {term.term_number}
                   </span>
                   <div>
-                    <h2 className="text-lg font-bold text-navy">{term.name}</h2>
-                    <p className="mt-1 text-sm text-navy/60">
+                    <h2 className="text-lg font-bold text-ink">{term.name}</h2>
+                    <p className="mt-1 text-sm text-muted">
                       {term.courses?.[0]?.count ?? 0} مادة دراسية
                     </p>
                   </div>

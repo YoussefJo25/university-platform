@@ -63,26 +63,26 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-14 text-center sm:px-6">
-        <h1 className="text-2xl font-extrabold text-white sm:text-4xl">
+      <section className="bg-panel border-b border-subtle px-4 py-14 text-center sm:px-6">
+        <h1 className="text-2xl font-extrabold text-ink sm:text-4xl">
           {isLogin ? "تسجيل الدخول" : "إنشاء حساب جديد"}
         </h1>
-        <p className="mt-3 text-sm text-white/90 sm:text-base">
+        <p className="mt-3 text-sm text-muted sm:text-base">
           {isLogin
             ? "ادخل ببريدك الإلكتروني وكلمة المرور للوصول إلى حسابك"
             : "أنشئ حسابك للوصول إلى خدمات المنصة"}
         </p>
       </section>
 
-      <section className="flex flex-1 items-center justify-center bg-white px-4 py-12 sm:px-6">
+      <section className="flex flex-1 items-center justify-center bg-canvas px-4 py-12 sm:px-6">
         <div className="w-full max-w-sm">
           <form
             onSubmit={handleSubmit}
-            className="flex flex-col gap-4 rounded-2xl border border-navy/10 bg-white p-6 shadow-sm"
+            className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
           >
             {!isLogin && (
               <div>
-                <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-navy">
+                <label htmlFor="fullName" className="mb-1.5 block text-sm font-medium text-ink">
                   الاسم الكامل
                 </label>
                 <input
@@ -91,14 +91,14 @@ export default function LoginPage() {
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+                  className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
                   placeholder="الاسم الأول واللقب"
                 />
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-navy">
+              <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink">
                 البريد الإلكتروني
               </label>
               <input
@@ -107,14 +107,14 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+                className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
                 placeholder="example@mail.com"
               />
             </div>
 
             {!isLogin && (
               <div>
-                <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-navy">
+                <label htmlFor="phone" className="mb-1.5 block text-sm font-medium text-ink">
                   رقم الهاتف
                 </label>
                 <input
@@ -123,14 +123,14 @@ export default function LoginPage() {
                   required
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+                  className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
                   placeholder="01xxxxxxxxx"
                 />
               </div>
             )}
 
             <div>
-              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-navy">
+              <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink">
                 كلمة المرور
               </label>
               <input
@@ -140,7 +140,7 @@ export default function LoginPage() {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-navy/15 px-4 py-2.5 text-sm text-navy outline-none transition-colors focus:border-turquoise"
+                className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
                 placeholder="••••••••"
               />
             </div>
@@ -150,13 +150,13 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-2 inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-3 text-sm font-semibold text-white shadow-md transition-transform hover:scale-105 hover:shadow-lg disabled:opacity-60 disabled:hover:scale-100"
+              className="mt-2 inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-3 text-sm font-semibold shadow-md transition-transform hover:scale-105 hover:shadow-lg disabled:opacity-60 disabled:hover:scale-100"
             >
               {loading ? "جارٍ التحميل..." : isLogin ? "تسجيل الدخول" : "إنشاء حساب"}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-navy/70">
+          <p className="mt-6 text-center text-sm text-muted">
             {isLogin ? "ليس لديك حساب؟" : "لديك حساب بالفعل؟"}{" "}
             <button
               type="button"
@@ -164,7 +164,7 @@ export default function LoginPage() {
                 setError(null);
                 setMode(isLogin ? "signup" : "login");
               }}
-              className="font-semibold text-turquoise hover:underline"
+              className="font-semibold text-gold hover:underline"
             >
               {isLogin ? "أنشئ حسابًا جديدًا" : "سجّل الدخول"}
             </button>
@@ -172,7 +172,7 @@ export default function LoginPage() {
 
           <Link
             href="/"
-            className="mt-4 block text-center text-sm font-medium text-navy/60 transition-colors hover:text-navy"
+            className="mt-4 block text-center text-sm font-medium text-muted transition-colors hover:text-ink"
           >
             الرجوع للرئيسية
           </Link>

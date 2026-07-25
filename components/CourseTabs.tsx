@@ -79,7 +79,7 @@ export default function CourseTabs({
 
   return (
     <div>
-      <div className="flex w-full rounded-full border border-navy/10 bg-navy/5 p-1">
+      <div className="flex w-full rounded-full border border-subtle bg-panel p-1">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -88,8 +88,8 @@ export default function CourseTabs({
             aria-pressed={active === tab.key}
             className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
               active === tab.key
-                ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
-                : "text-navy/70 hover:text-navy"
+                ? "bg-gold text-gold-ink shadow-sm"
+                : "text-muted hover:text-ink"
             }`}
           >
             {tab.label}
@@ -97,11 +97,11 @@ export default function CourseTabs({
         ))}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-navy/10 bg-white p-6 shadow-sm">
+      <div className="mt-6 rounded-2xl border border-subtle bg-card p-6 shadow-sm">
         {active === "overview" && (
           <div>
-            <h2 className="text-lg font-bold text-navy">نظرة عامة</h2>
-            <p className="mt-3 text-sm leading-7 text-navy/70">
+            <h2 className="text-lg font-bold text-ink">نظرة عامة</h2>
+            <p className="mt-3 text-sm leading-7 text-muted">
               {description || "لا يوجد وصف لهذه المادة حاليًا."}
             </p>
           </div>
@@ -109,9 +109,9 @@ export default function CourseTabs({
 
         {active === "books" && (
           <div>
-            <h2 className="text-lg font-bold text-navy">الكتب</h2>
+            <h2 className="text-lg font-bold text-ink">الكتب</h2>
             {bookFolders.length === 0 && unfiledBooks.length === 0 ? (
-              <p className="mt-3 text-sm text-navy/60">لا توجد كتب مضافة بعد</p>
+              <p className="mt-3 text-sm text-muted">لا توجد كتب مضافة بعد</p>
             ) : (
               <div className="mt-4 flex flex-col gap-3">
                 {bookFolders.map((folder) => (
@@ -131,9 +131,9 @@ export default function CourseTabs({
 
         {active === "videos" && (
           <div>
-            <h2 className="text-lg font-bold text-navy">الفيديوهات</h2>
+            <h2 className="text-lg font-bold text-ink">الفيديوهات</h2>
             {playlistGroups.length === 0 ? (
-              <p className="mt-3 text-sm text-navy/60">لا توجد فيديوهات مضافة بعد</p>
+              <p className="mt-3 text-sm text-muted">لا توجد فيديوهات مضافة بعد</p>
             ) : (
               <VideoPlayer playlistGroups={playlistGroups} />
             )}
@@ -162,7 +162,7 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
   return (
     <div className="mt-4">
       {playlistGroups.length > 1 && (
-        <div className="mb-6 flex w-full flex-wrap gap-1 rounded-full border border-navy/10 bg-navy/5 p-1">
+        <div className="mb-6 flex w-full flex-wrap gap-1 rounded-full border border-subtle bg-panel p-1">
           {sourceGroups.map((sourceGroup) =>
             sourceGroup.members.length > 1 ? (
               <SourceGroupSelector
@@ -179,8 +179,8 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
                 aria-pressed={sourceGroup.members[0].id === selectedGroup.id}
                 className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
                   sourceGroup.members[0].id === selectedGroup.id
-                    ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
-                    : "text-navy/70 hover:text-navy"
+                    ? "bg-gold text-gold-ink shadow-sm"
+                    : "text-muted hover:text-ink"
                 }`}
               >
                 {sourceGroup.members[0].title}
@@ -193,7 +193,7 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
       <div className="flex flex-col gap-6 sm:flex-row-reverse">
         <div className="flex-1">
           {selectedVideo.embedUrl ? (
-            <div className="aspect-video w-full overflow-hidden rounded-xl border border-navy/10 shadow-sm">
+            <div className="aspect-video w-full overflow-hidden rounded-xl border border-subtle bg-card shadow-sm">
               <iframe
                 key={selectedVideo.id}
                 src={selectedVideo.embedUrl}
@@ -208,7 +208,7 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
               الرابط غير صالح
             </div>
           )}
-          <p className="mt-3 font-semibold text-navy">{selectedVideo.title}</p>
+          <p className="mt-3 font-semibold text-ink">{selectedVideo.title}</p>
         </div>
 
         {selectedGroup.videos.length > 1 && (
@@ -221,8 +221,8 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
                   aria-pressed={video.id === selectedVideo.id}
                   className={`w-full rounded-xl px-4 py-3 text-right text-sm font-medium transition-colors ${
                     video.id === selectedVideo.id
-                      ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
-                      : "bg-navy/5 text-navy/80 hover:bg-navy/10"
+                      ? "bg-gold text-gold-ink shadow-sm"
+                      : "bg-panel text-muted hover:bg-card"
                   }`}
                 >
                   {video.title}
@@ -269,8 +269,8 @@ function SourceGroupSelector({
         aria-expanded={open}
         className={`flex w-full items-center justify-center gap-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors sm:px-6 ${
           isActive
-            ? "bg-gradient-to-l from-navy to-turquoise text-white shadow-sm"
-            : "text-navy/70 hover:text-navy"
+            ? "bg-gold text-gold-ink shadow-sm"
+            : "text-muted hover:text-ink"
         }`}
       >
         {groupLabel}
@@ -287,7 +287,7 @@ function SourceGroupSelector({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-2 w-56 overflow-hidden rounded-xl border border-navy/10 bg-white shadow-lg">
+        <div className="absolute right-0 z-10 mt-2 w-56 overflow-hidden rounded-xl border border-subtle bg-card shadow-lg">
           {sourceGroup.members.map((member) => (
             <button
               key={member.id}
@@ -298,8 +298,8 @@ function SourceGroupSelector({
               }}
               className={`block w-full px-4 py-2.5 text-right text-sm transition-colors ${
                 member.id === selectedGroupId
-                  ? "bg-navy/5 font-semibold text-navy"
-                  : "text-navy/70 hover:bg-navy/5"
+                  ? "bg-panel font-semibold text-ink"
+                  : "text-muted hover:bg-panel"
               }`}
             >
               {member.title}
@@ -323,47 +323,47 @@ function BookFolderAccordion({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="rounded-xl border border-navy/10">
+    <div className="rounded-xl border border-subtle bg-card">
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
         className="flex w-full items-center justify-between px-4 py-3 text-right"
       >
-        <span className="font-semibold text-navy">{name}</span>
+        <span className="font-semibold text-ink">{name}</span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={2}
           stroke="currentColor"
-          className={`h-5 w-5 shrink-0 text-navy/60 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-5 w-5 shrink-0 text-muted transition-transform ${open ? "rotate-180" : ""}`}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
         </svg>
       </button>
 
       {open && (
-        <div className="border-t border-navy/10 p-4">
+        <div className="border-t border-subtle bg-card p-4">
           {books.length === 0 ? (
-            <p className="text-sm text-navy/60">لا توجد ملفات في هذا الفولدر بعد</p>
+            <p className="text-sm text-muted">لا توجد ملفات في هذا الفولدر بعد</p>
           ) : (
             <ul className="flex flex-col gap-3">
               {books.map((book) => (
                 <li
                   key={book.id}
-                  className="flex flex-col gap-3 rounded-xl border border-navy/10 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-xl border border-subtle bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="font-semibold text-navy">{book.title}</p>
-                    {book.author && <p className="text-sm text-navy/60">{book.author}</p>}
+                    <p className="font-semibold text-ink">{book.title}</p>
+                    {book.author && <p className="text-sm text-muted">{book.author}</p>}
                   </div>
                   {book.file_url && (
                     <a
                       href={book.file_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-4 py-2 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-105"
+                      className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm transition-transform hover:scale-105"
                     >
                       تحميل الكتاب
                     </a>

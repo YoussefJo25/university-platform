@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getDisplayName } from "@/lib/displayName";
 import { isStaffRole } from "@/lib/roles";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const baseNavLinks = [
   { href: "/", label: "الرئيسية" },
@@ -81,7 +82,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
     : baseNavLinks;
 
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-l from-navy to-turquoise shadow-md">
+    <header className="sticky top-0 z-50 border-b border-subtle bg-panel shadow-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-3">
           <Image
@@ -90,49 +91,53 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
             width={48}
             height={48}
             priority
-            className="h-10 w-10 shrink-0 rounded-full border-2 border-white/80 object-cover shadow-sm sm:h-12 sm:w-12"
+            className="h-10 w-10 shrink-0 rounded-full border-2 border-gold/80 object-cover shadow-sm sm:h-12 sm:w-12"
           />
-          <span className="text-base font-bold text-white sm:text-xl">{universityName}</span>
+          <span className="text-base font-bold text-ink sm:text-xl">{universityName}</span>
         </Link>
 
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav className="hidden items-center gap-6 md:flex">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium text-white/90 transition-colors hover:text-white"
+              className="text-sm font-medium text-muted transition-colors hover:text-ink"
             >
               {link.label}
             </Link>
           ))}
 
+          <ThemeToggle />
+
           {email ? (
             <div className="flex items-center gap-4">
               <Link
                 href="/profile"
-                className="flex items-center gap-1.5 text-sm font-medium text-white/90 transition-colors hover:text-white hover:underline"
+                className="flex items-center gap-2 text-sm font-medium text-muted transition-colors hover:text-ink"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0ZM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-                  />
-                </svg>
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gold/50 text-gold">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0ZM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+                    />
+                  </svg>
+                </span>
                 {displayName}
               </Link>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="rounded-full bg-white/15 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-white/25"
+                className="rounded-full border border-subtle px-4 py-1.5 text-sm font-semibold text-ink transition-colors hover:border-gold"
               >
                 تسجيل خروج
               </button>
@@ -140,20 +145,22 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
           ) : (
             <Link
               href="/login"
-              className="text-sm font-medium text-white/90 transition-colors hover:text-white"
+              className="rounded-full bg-gold px-5 py-2 text-sm font-semibold text-gold-ink shadow-sm transition-transform hover:scale-105"
             >
               تسجيل الدخول
             </Link>
           )}
         </nav>
 
-        <button
-          type="button"
-          onClick={() => setIsMenuOpen((prev) => !prev)}
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-white md:hidden"
-          aria-label="فتح القائمة"
-          aria-expanded={isMenuOpen}
-        >
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen((prev) => !prev)}
+            className="flex h-10 w-10 items-center justify-center rounded-lg text-ink"
+            aria-label="فتح القائمة"
+            aria-expanded={isMenuOpen}
+          >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
@@ -168,17 +175,18 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             )}
           </svg>
-        </button>
+          </button>
+        </div>
       </div>
 
       {isMenuOpen && (
-        <nav className="flex flex-col gap-1 border-t border-white/20 bg-navy-dark/90 px-4 py-3 md:hidden">
+        <nav className="flex flex-col gap-1 border-t border-subtle bg-panel px-4 py-3 md:hidden">
           {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setIsMenuOpen(false)}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-ink"
             >
               {link.label}
             </Link>
@@ -189,14 +197,14 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
               <Link
                 href="/profile"
                 onClick={() => setIsMenuOpen(false)}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white hover:underline"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-ink"
               >
                 {displayName}
               </Link>
               <button
                 type="button"
                 onClick={handleLogout}
-                className="rounded-lg px-3 py-2 text-right text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+                className="rounded-lg px-3 py-2 text-right text-sm font-medium text-muted transition-colors hover:bg-card hover:text-ink"
               >
                 تسجيل خروج
               </button>
@@ -205,7 +213,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
             <Link
               href="/login"
               onClick={() => setIsMenuOpen(false)}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+              className="mt-1 inline-flex w-fit items-center justify-center rounded-full bg-gold px-5 py-2 text-sm font-semibold text-gold-ink shadow-sm"
             >
               تسجيل الدخول
             </Link>

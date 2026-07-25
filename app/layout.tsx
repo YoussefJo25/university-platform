@@ -26,6 +26,11 @@ export default async function RootLayout({
   return (
     <html lang="ar" dir="rtl" className={`${cairo.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("theme");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark");}catch(e){}})();`,
+          }}
+        />
         <Header universityName={settings.university_name} logoUrl={settings.logo_url} />
         <main className="flex flex-1 flex-col">{children}</main>
         <Footer footerText={settings.footer_text} />

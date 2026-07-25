@@ -43,31 +43,31 @@ export default async function ProfilePage() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="bg-gradient-to-l from-navy to-turquoise px-4 py-14 text-center sm:px-6">
-        <h1 className="text-2xl font-extrabold text-white sm:text-4xl">حسابي</h1>
-        <p className="mt-3 text-sm text-white/90 sm:text-base">بيانات حسابك على المنصة</p>
+      <section className="bg-panel border-b border-subtle px-4 py-14 text-center sm:px-6">
+        <h1 className="text-2xl font-extrabold text-ink sm:text-4xl">حسابي</h1>
+        <p className="mt-3 text-sm text-muted sm:text-base">بيانات حسابك على المنصة</p>
       </section>
 
-      <section className="flex-1 bg-white px-4 py-12 sm:px-6">
+      <section className="flex-1 bg-canvas px-4 py-12 sm:px-6">
         <div className="mx-auto flex max-w-lg flex-col gap-8">
-          <div className="rounded-2xl border border-navy/10 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
             <dl className="flex flex-col gap-4">
               <div>
-                <dt className="text-xs font-medium text-navy/50">البريد الإلكتروني</dt>
-                <dd className="mt-1 text-sm font-semibold text-navy">
+                <dt className="text-xs font-medium text-muted">البريد الإلكتروني</dt>
+                <dd className="mt-1 text-sm font-semibold text-ink">
                   {profile?.email ?? user.email}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-medium text-navy/50">نوع الحساب</dt>
-                <dd className="mt-1 text-sm font-semibold text-navy">
+                <dt className="text-xs font-medium text-muted">نوع الحساب</dt>
+                <dd className="mt-1 text-sm font-semibold text-ink">
                   {roleLabel(profile?.role)}
                 </dd>
               </div>
               {createdAt && (
                 <div>
-                  <dt className="text-xs font-medium text-navy/50">تاريخ إنشاء الحساب</dt>
-                  <dd className="mt-1 text-sm font-semibold text-navy">{createdAt}</dd>
+                  <dt className="text-xs font-medium text-muted">تاريخ إنشاء الحساب</dt>
+                  <dd className="mt-1 text-sm font-semibold text-ink">{createdAt}</dd>
                 </div>
               )}
             </dl>

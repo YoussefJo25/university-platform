@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { MouseEventHandler, ReactNode } from "react";
 
 const baseClasses =
-  "inline-flex items-center justify-center rounded-full bg-gradient-to-l from-navy to-turquoise px-6 py-3 text-sm font-semibold text-white shadow-md transition-transform hover:scale-105 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-turquoise focus-visible:ring-offset-2";
+  "inline-flex items-center justify-center rounded-full bg-gold px-6 py-3 text-sm font-semibold text-gold-ink shadow-md transition-transform hover:scale-105 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2";
 
 type GradientButtonProps = {
   children: ReactNode;

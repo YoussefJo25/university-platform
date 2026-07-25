@@ -1,25 +1,45 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #0b1e3f;
+  /* Dark theme (default) */
+  --canvas: #0f0d24;
+  --panel: #1a1740;
+  --card: #1e1b4b;
+  --gold: #d4af37;
+  --gold-ink: #26210a;
+  --ink: #f5f5f4;
+  --muted: #a5a1d6;
+  --subtle: #3c3489;
+}
+
+[data-theme="light"] {
+  --canvas: #ffffff;
+  --panel: #f8f7fc;
+  --card: #ffffff;
+  --gold: #b8860b;
+  --gold-ink: #ffffff;
+  --ink: #1a1740;
+  --muted: #6b6591;
+  --subtle: #e0ddf0;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-card: var(--card);
+  --color-gold: var(--gold);
+  --color-gold-ink: var(--gold-ink);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
   --font-sans: var(--font-cairo);
-
-  /* هوية الجامعة: تدرج من الأزرق الكحلي إلى التركواز */
-  --color-navy: #0b1e3f;
-  --color-navy-dark: #061225;
-  --color-navy-light: #163a6b;
-  --color-turquoise: #14b8a6;
-  --color-turquoise-light: #5eead4;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--canvas);
+  color: var(--ink);
   font-family: var(--font-cairo), Arial, Helvetica, sans-serif;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
