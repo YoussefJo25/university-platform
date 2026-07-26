@@ -23,12 +23,17 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [disabledMessage, setDisabledMessage] = useState(false);
 
   const isLogin = mode === "login";
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("passwordReset") === "1") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("passwordReset") === "1") {
       setResetSuccess(true);
+    }
+    if (params.get("disabled") === "1") {
+      setDisabledMessage(true);
     }
   }, []);
 
@@ -129,6 +134,12 @@ export default function LoginPage() {
           {resetSuccess && isLogin && (
             <p className="mb-4 rounded-xl border border-gold/30 bg-gold/10 px-4 py-3 text-center text-sm font-medium text-gold">
               تم تغيير كلمة المرور بنجاح، سجّل دخولك بكلمة المرور الجديدة.
+            </p>
+          )}
+
+          {disabledMessage && (
+            <p className="mb-4 rounded-xl border border-red-600/30 bg-red-600/10 px-4 py-3 text-center text-sm font-medium text-red-600">
+              تم تعطيل هذا الحساب. تواصل مع الدعم الفني لو محتاج مساعدة.
             </p>
           )}
 

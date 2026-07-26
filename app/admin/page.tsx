@@ -77,6 +77,7 @@ type ProfileRow = {
   created_at: string;
   university_id: number | null;
   year_id: number | null;
+  is_active: boolean;
 };
 type YearManagerRow = {
   id: number;
@@ -251,7 +252,7 @@ export default function AdminPage() {
       // صفوفه هو بس، super_admin بيرجعله كل الصفوف — نفس الاستعلام للكل.
       supabase
         .from("profiles")
-        .select("id, email, full_name, phone, role, created_at, university_id, year_id")
+        .select("id, email, full_name, phone, role, created_at, university_id, year_id, is_active")
         .order("created_at"),
       supabase
         .from("year_managers")
@@ -438,6 +439,7 @@ export default function AdminPage() {
                   yearManagers={yearManagers}
                   universities={universities}
                   years={years}
+                  currentUserId={currentUserId}
                   supabase={supabase}
                   onChange={loadAll}
                 />
@@ -757,6 +759,7 @@ function UsersTab({
   yearManagers,
   universities,
   years,
+  currentUserId,
   supabase,
   onChange,
 }: {
@@ -764,12 +767,20 @@ function UsersTab({
   yearManagers: YearManagerRow[];
   universities: University[];
   years: Year[];
+  currentUserId: string | null;
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
   const [assigningUserId, setAssigningUserId] = useState<string | null>(null);
   const [assignUniversityId, setAssignUniversityId] = useState<number | string>("");
   const [assignYearId, setAssignYearId] = useState<number | string>("");
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    fullName: "",
+    phone: "",
+    universityId: "" as number | string,
+    yearId: "" as number | string,
+  });
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -777,8 +788,23 @@ function UsersTab({
     return years.filter((y) => String(y.university_id) === String(universityId));
   }
 
+  function actorName(): string {
+    const actor = profiles.find((p) => p.id === currentUserId);
+    return actor?.full_name || actor?.email || "غير معروف";
+  }
+
+  async function logAction(actionType: string, targetDescription: string) {
+    await supabase.from("admin_audit_log").insert({
+      actor_id: currentUserId,
+      actor_name: actorName(),
+      action_type: actionType,
+      target_description: targetDescription,
+    });
+  }
+
   function startAssign(userId: string) {
     setFormError(null);
+    setEditingUserId(null);
     setAssigningUserId(userId);
     const firstUniversity = universities[0]?.id ?? "";
     setAssignUniversityId(firstUniversity);
@@ -788,6 +814,100 @@ function UsersTab({
   function cancelAssign() {
     setAssigningUserId(null);
     setFormError(null);
+  }
+
+  function startEdit(profile: ProfileRow) {
+    setFormError(null);
+    setAssigningUserId(null);
+    setEditingUserId(profile.id);
+    const uniId = profile.university_id ?? universities[0]?.id ?? "";
+    setEditForm({
+      fullName: profile.full_name ?? "",
+      phone: profile.phone ?? "",
+      universityId: uniId,
+      yearId: profile.year_id ?? yearsForUniversity(uniId)[0]?.id ?? "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingUserId(null);
+    setFormError(null);
+  }
+
+  async function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editingUserId) return;
+
+    const target = profiles.find((p) => p.id === editingUserId);
+    setFormError(null);
+    setBusyUserId(editingUserId);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: editForm.fullName.trim(),
+        phone: editForm.phone.trim(),
+        university_id: editForm.universityId ? Number(editForm.universityId) : null,
+        year_id: editForm.yearId ? Number(editForm.yearId) : null,
+      })
+      .eq("id", editingUserId);
+
+    if (error) {
+      setBusyUserId(null);
+      setFormError(`فشل التعديل: ${error.message}`);
+      return;
+    }
+
+    await logAction("edit_user", target?.full_name || target?.email || editingUserId);
+
+    setBusyUserId(null);
+    setEditingUserId(null);
+    onChange();
+  }
+
+  async function handleToggleActive(profile: ProfileRow) {
+    const activating = !profile.is_active;
+    const label = profile.full_name || profile.email;
+
+    if (!activating && !confirm(`هل أنت متأكد من تعطيل حساب "${label}"؟`)) return;
+
+    setBusyUserId(profile.id);
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_active: activating })
+      .eq("id", profile.id);
+
+    if (error) {
+      setBusyUserId(null);
+      alert(`فشل ${activating ? "التفعيل" : "التعطيل"}: ${error.message}`);
+      return;
+    }
+
+    await logAction(activating ? "activate_user" : "deactivate_user", label);
+
+    setBusyUserId(null);
+    onChange();
+  }
+
+  async function handleDeleteUser(profile: ProfileRow) {
+    const label = profile.full_name || profile.email;
+    if (!confirm(`هل أنت متأكد من حذف حساب "${label}" نهائيًا؟ الإجراء ده مينفعش يتراجع فيه.`)) {
+      return;
+    }
+
+    setBusyUserId(profile.id);
+
+    const { error } = await supabase.rpc("admin_delete_user", { target_id: profile.id });
+
+    setBusyUserId(null);
+
+    if (error) {
+      alert(`فشل الحذف: ${error.message}`);
+      return;
+    }
+
+    onChange();
   }
 
   async function handleAssignSubmit(event: FormEvent<HTMLFormElement>) {
@@ -861,9 +981,17 @@ function UsersTab({
   function renderProfileRow(profile: ProfileRow) {
     const assignments = yearManagers.filter((ym) => ym.profile_id === profile.id);
     const isAssigning = assigningUserId === profile.id;
+    const isEditing = editingUserId === profile.id;
+    const isBusy = busyUserId === profile.id;
+    const isSuperAdminRow = profile.role === "super_admin";
 
     return (
-      <li key={profile.id} className="rounded-xl border border-subtle bg-card p-4">
+      <li
+        key={profile.id}
+        className={`rounded-xl border border-subtle bg-card p-4 ${
+          !profile.is_active ? "opacity-70" : ""
+        }`}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-semibold text-ink">{profile.full_name || profile.email}</p>
@@ -873,22 +1001,136 @@ function UsersTab({
               {new Date(profile.created_at).toLocaleDateString("ar-EG")}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center rounded-full bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
               {ROLE_LABELS[profile.role] ?? profile.role}
             </span>
-            {profile.role !== "super_admin" && (
-              <button
-                type="button"
-                disabled={busyUserId === profile.id}
-                onClick={() => startAssign(profile.id)}
-                className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
-              >
-                {profile.role === "year_admin" ? "تعيين على فرقة إضافية" : "تعيين كأدمن فرقة"}
-              </button>
+            {!profile.is_active && (
+              <span className="inline-flex items-center rounded-full bg-red-600/10 px-3 py-1 text-xs font-semibold text-red-600">
+                معطّل
+              </span>
+            )}
+            {!isSuperAdminRow && (
+              <>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => startAssign(profile.id)}
+                  className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
+                >
+                  {profile.role === "year_admin" ? "تعيين على فرقة إضافية" : "تعيين كأدمن فرقة"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => startEdit(profile)}
+                  className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
+                >
+                  تعديل
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => handleToggleActive(profile)}
+                  className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
+                >
+                  {profile.is_active ? "تعطيل" : "تفعيل"}
+                </button>
+                <button
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => handleDeleteUser(profile)}
+                  className="text-sm font-medium text-red-600 hover:underline disabled:opacity-60"
+                >
+                  حذف
+                </button>
+              </>
             )}
           </div>
         </div>
+
+        {isEditing && (
+          <form
+            onSubmit={handleEditSubmit}
+            className="mt-3 flex flex-col gap-3 rounded-lg bg-panel p-3"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-ink">الاسم</label>
+                <input
+                  required
+                  value={editForm.fullName}
+                  onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                  className={inputClasses}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-ink">رقم الهاتف</label>
+                <input
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  className={inputClasses}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
+                <select
+                  value={editForm.universityId}
+                  onChange={(e) => {
+                    const nextUniId = e.target.value;
+                    setEditForm({
+                      ...editForm,
+                      universityId: nextUniId,
+                      yearId: yearsForUniversity(nextUniId)[0]?.id ?? "",
+                    });
+                  }}
+                  className={inputClasses}
+                >
+                  {universities.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
+                <select
+                  value={editForm.yearId}
+                  onChange={(e) => setEditForm({ ...editForm, yearId: e.target.value })}
+                  className={inputClasses}
+                >
+                  {yearsForUniversity(editForm.universityId).length === 0 && (
+                    <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                  )}
+                  {yearsForUniversity(editForm.universityId).map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={isBusy}
+                className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
+              >
+                حفظ
+              </button>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="text-xs font-medium text-muted hover:text-ink"
+              >
+                إلغاء
+              </button>
+            </div>
+          </form>
+        )}
 
         {profile.role === "year_admin" && assignments.length > 0 && (
           <ul className="mt-3 flex flex-col gap-2 border-t border-subtle bg-card pt-3">

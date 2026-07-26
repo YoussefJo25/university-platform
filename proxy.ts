@@ -35,16 +35,29 @@ export default async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  let profile: { role: string | null; is_active: boolean } | null = null;
+
+  if (user) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", user.id)
+      .single();
+    profile = data;
+
+    // حساب متعطّل: تسجيل خروج فوري بغض النظر عن الصفحة اللي بيحاول
+    // يوصلها، حتى لو صفحة عامة — عشان محدش يفضل قاعد بسيشن نشطة بعد
+    // ما الأدمن يعطّل حسابه.
+    if (profile && profile.is_active === false) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(new URL("/login?disabled=1", request.url));
+    }
+  }
+
   if (pathname.startsWith("/admin")) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
 
     if (!isStaffRole(profile?.role)) {
       return NextResponse.redirect(new URL("/", request.url));
