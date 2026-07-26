@@ -6,7 +6,7 @@ export type SiteSettings = {
   support_email: string;
   support_phone: string;
   social_facebook: string;
-  social_twitter: string;
+  social_linkedin: string;
   social_instagram: string;
   footer_text: string;
   whatsapp_number: string;
@@ -20,7 +20,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   support_email: "support@minia-national.edu.eg",
   support_phone: "",
   social_facebook: "",
-  social_twitter: "",
+  social_linkedin: "",
   social_instagram: "",
   footer_text: "جميع الحقوق محفوظة لجامعة المنيا الاهلية",
   whatsapp_number: "",

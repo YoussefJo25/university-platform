@@ -2588,11 +2588,11 @@ function SettingsTab({
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-ink">
-              رابط تويتر (اختياري)
+              رابط لينكد إن (اختياري)
             </label>
             <input
-              value={form.social_twitter}
-              onChange={(e) => updateField("social_twitter", e.target.value)}
+              value={form.social_linkedin}
+              onChange={(e) => updateField("social_linkedin", e.target.value)}
               className={inputClasses}
             />
           </div>

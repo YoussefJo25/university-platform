@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { getSiteSettings } from "@/lib/siteSettings";
+import { FacebookIcon, LinkedInIcon, InstagramIcon } from "@/components/SocialIcons";
 
 const socialLinks = [
-  { key: "social_facebook" as const, label: "فيسبوك" },
-  { key: "social_twitter" as const, label: "تويتر" },
-  { key: "social_instagram" as const, label: "انستجرام" },
+  { key: "social_facebook" as const, label: "فيسبوك", Icon: FacebookIcon },
+  { key: "social_linkedin" as const, label: "لينكد إن", Icon: LinkedInIcon },
+  { key: "social_instagram" as const, label: "انستجرام", Icon: InstagramIcon },
 ];
 
 export default async function SupportPage() {
@@ -47,19 +48,21 @@ export default async function SupportPage() {
           </div>
 
           {activeSocialLinks.length > 0 && (
-            <div className="mt-6 flex justify-center gap-4">
-              {activeSocialLinks.map((link) => (
-                <a
-                  key={link.key}
-                  href={settings[link.key]}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-medium text-gold hover:underline"
-                >
-                  {link.label}
-                </a>
+            <ul className="mt-6 flex flex-col items-center gap-3">
+              {activeSocialLinks.map(({ key, label, Icon }) => (
+                <li key={key}>
+                  <a
+                    href={settings[key]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-sm font-medium text-gold hover:underline"
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span>{label}</span>
+                  </a>
+                </li>
               ))}
-            </div>
+            </ul>
           )}
 
           <Link
