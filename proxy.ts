@@ -2,6 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isStaffRole } from "@/lib/roles";
 
+// الصفحات دي بس المسموح تتصفحها من غير تسجيل دخول. أي مسار تاني (حتى لو
+// اتضاف مستقبلًا) بيتقفل تلقائيًا بدل ما يفضل عام بالغلط لحد ما حد يفتكر
+// يضيفه هنا يدويًا.
+const PUBLIC_PATHS = ["/", "/login", "/forgot-password", "/reset-password", "/support"];
+
 export default async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -28,7 +33,9 @@ export default async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (request.nextUrl.pathname.startsWith("/admin")) {
+  const pathname = request.nextUrl.pathname;
+
+  if (pathname.startsWith("/admin")) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -42,9 +49,7 @@ export default async function proxy(request: NextRequest) {
     if (!isStaffRole(profile?.role)) {
       return NextResponse.redirect(new URL("/", request.url));
     }
-  }
-
-  if (request.nextUrl.pathname.startsWith("/profile") && !user) {
+  } else if (!PUBLIC_PATHS.includes(pathname) && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
