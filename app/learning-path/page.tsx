@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +10,7 @@ type CourseRow = {
 };
 
 export default async function LearningPathPage() {
+  const supabase = await createClient();
   let { data, error } = await supabase
     .from("courses")
     .select("id, name, description")

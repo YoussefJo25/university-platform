@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
 import { extractPlaylistId, getYoutubeEmbedUrl } from "@/lib/youtube";
 import { getPlaylistVideos } from "@/lib/youtubeApi";
 import CourseTabs from "@/components/CourseTabs";
@@ -69,7 +69,12 @@ type PlaylistGroup = {
   videos: VideoItem[];
 };
 
-async function fetchPlaylistRows(courseId: string): Promise<PlaylistRow[]> {
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+async function fetchPlaylistRows(
+  supabase: SupabaseServerClient,
+  courseId: string
+): Promise<PlaylistRow[]> {
   const full = await supabase
     .from("playlists")
     .select("id, title, youtube_url, order_index, group_name")
@@ -127,6 +132,7 @@ export default async function CourseDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const supabase = await createClient();
 
   let { data: courseData, error: courseError } = await supabase
     .from("courses")
@@ -200,7 +206,7 @@ export default async function CourseDetailPage({
         .eq("course_id", id)
         .order("order_index")
         .order("name"),
-      fetchPlaylistRows(id),
+      fetchPlaylistRows(supabase, id),
     ]);
 
     const books = (booksData ?? []) as BookRow[];

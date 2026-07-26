@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function AcademicYearsRedirectPage() {
+  const supabase = await createClient();
   const { data } = await supabase
     .from("universities")
     .select("id")

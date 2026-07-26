@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +12,7 @@ type UniversityRow = {
 };
 
 export default async function UniversitiesPage() {
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("universities")
     .select("id, name, logo_url, description")
