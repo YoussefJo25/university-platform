@@ -91,9 +91,22 @@ type YearManagerRow = {
   } | null;
 };
 type ManagedYear = { id: number; name: string; universityName: string };
+type AuditLogRow = {
+  id: number;
+  actor_name: string;
+  action_type: string;
+  target_description: string;
+  created_at: string;
+};
 
 // التابات دي محصورة على super_admin بس (تختفي تمامًا من واجهة year_admin)
-const SUPER_ADMIN_ONLY_TABS: TabKey[] = ["universities", "users", "settings", "leadership"];
+const SUPER_ADMIN_ONLY_TABS: TabKey[] = [
+  "universities",
+  "users",
+  "settings",
+  "leadership",
+  "auditLog",
+];
 
 type TabKey =
   | "universities"
@@ -102,7 +115,8 @@ type TabKey =
   | "books"
   | "playlists"
   | "settings"
-  | "leadership";
+  | "leadership"
+  | "auditLog";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "universities", label: "الجامعات" },
@@ -112,6 +126,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "playlists", label: "الفيديوهات" },
   { key: "settings", label: "إعدادات الموقع" },
   { key: "leadership", label: "القيادة" },
+  { key: "auditLog", label: "سجل النشاط" },
 ];
 
 const inputClasses =
@@ -133,6 +148,7 @@ export default function AdminPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [yearManagers, setYearManagers] = useState<YearManagerRow[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditLogRow[]>([]);
   const [activeManagedYearId, setActiveManagedYearId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -206,6 +222,7 @@ export default function AdminPage() {
       leadershipRes,
       profilesRes,
       yearManagersRes,
+      auditLogRes,
     ] = await Promise.all([
       supabase.auth.getUser(),
       supabase
@@ -239,6 +256,11 @@ export default function AdminPage() {
       supabase
         .from("year_managers")
         .select("id, profile_id, year_id, years(id, name, year_number, university_id, universities(name))"),
+      supabase
+        .from("admin_audit_log")
+        .select("id, actor_name, action_type, target_description, created_at")
+        .order("created_at", { ascending: false })
+        .limit(200),
     ]);
 
     setCurrentUserId(userRes.data.user?.id ?? null);
@@ -277,6 +299,10 @@ export default function AdminPage() {
 
     if (!profilesRes.error) {
       setProfiles((profilesRes.data ?? []) as ProfileRow[]);
+    }
+
+    if (!auditLogRes.error) {
+      setAuditLog((auditLogRes.data ?? []) as AuditLogRow[]);
     }
 
     if (!yearManagersRes.error) {
@@ -454,6 +480,7 @@ export default function AdminPage() {
                   onChange={loadAll}
                 />
               )}
+              {activeTab === "auditLog" && <AuditLogTab entries={auditLog} />}
             </div>
           )}
         </div>
@@ -989,6 +1016,54 @@ function UsersTab({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+const ACTION_TYPE_LABELS: Record<string, string> = {
+  edit_user: "تعديل بيانات مستخدم",
+  delete_user: "حذف حساب",
+  deactivate_user: "تعطيل حساب",
+  activate_user: "تفعيل حساب",
+  assign_year_admin: "تعيين أدمن فرقة",
+  unassign_year_admin: "إلغاء تعيين أدمن فرقة",
+};
+
+function AuditLogTab({ entries }: { entries: AuditLogRow[] }) {
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
+      <table className="w-full text-right text-sm">
+        <thead>
+          <tr className="border-b border-subtle text-xs text-muted">
+            <th className="px-4 py-3 font-medium">المستخدم</th>
+            <th className="px-4 py-3 font-medium">نوع الفعل</th>
+            <th className="px-4 py-3 font-medium">الوصف</th>
+            <th className="px-4 py-3 font-medium">التاريخ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-6 text-center text-muted">
+                لا يوجد نشاط مسجّل بعد
+              </td>
+            </tr>
+          ) : (
+            entries.map((entry) => (
+              <tr key={entry.id} className="border-b border-subtle last:border-0">
+                <td className="px-4 py-3 font-medium text-ink">{entry.actor_name}</td>
+                <td className="px-4 py-3 text-muted">
+                  {ACTION_TYPE_LABELS[entry.action_type] ?? entry.action_type}
+                </td>
+                <td className="px-4 py-3 text-muted">{entry.target_description}</td>
+                <td className="px-4 py-3 text-xs whitespace-nowrap text-muted">
+                  {new Date(entry.created_at).toLocaleString("ar-EG")}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
