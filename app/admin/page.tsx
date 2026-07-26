@@ -78,6 +78,7 @@ type ProfileRow = {
   university_id: number | null;
   year_id: number | null;
   is_active: boolean;
+  gender: string | null;
 };
 type YearManagerRow = {
   id: number;
@@ -252,7 +253,9 @@ export default function AdminPage() {
       // صفوفه هو بس، super_admin بيرجعله كل الصفوف — نفس الاستعلام للكل.
       supabase
         .from("profiles")
-        .select("id, email, full_name, phone, role, created_at, university_id, year_id, is_active")
+        .select(
+          "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender"
+        )
         .order("created_at"),
       supabase
         .from("year_managers")
@@ -964,6 +967,24 @@ function UsersTab({
   const classifiedProfiles = profiles.filter((p) => !isUnclassified(p));
   const unclassifiedProfiles = profiles.filter(isUnclassified);
 
+  const GENDER_GROUPS: { key: string; label: string; match: (p: ProfileRow) => boolean }[] = [
+    { key: "male", label: "ذكور", match: (p) => p.gender === "male" },
+    { key: "female", label: "إناث", match: (p) => p.gender === "female" },
+    {
+      key: "unspecified",
+      label: "غير محدد",
+      match: (p) => p.gender !== "male" && p.gender !== "female",
+    },
+  ];
+
+  function groupByGender(yearProfiles: ProfileRow[]) {
+    return GENDER_GROUPS.map((g) => ({
+      key: g.key,
+      label: g.label,
+      profiles: yearProfiles.filter(g.match),
+    })).filter((g) => g.profiles.length > 0);
+  }
+
   const universityGroups = universities
     .map((university) => {
       const uniYears = years.filter((y) => y.university_id === university.id);
@@ -1236,9 +1257,24 @@ function UsersTab({
                         ({yearProfiles.length} طالب)
                       </span>
                     </summary>
-                    <ul className="flex flex-col gap-3 p-3 pt-0">
-                      {yearProfiles.map(renderProfileRow)}
-                    </ul>
+                    <div className="flex flex-col gap-2 p-3 pt-0">
+                      {groupByGender(yearProfiles).map((genderGroup) => (
+                        <details
+                          key={genderGroup.key}
+                          className="rounded-md border border-subtle bg-card"
+                        >
+                          <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-ink">
+                            {genderGroup.label}{" "}
+                            <span className="font-normal text-muted">
+                              ({genderGroup.profiles.length})
+                            </span>
+                          </summary>
+                          <ul className="flex flex-col gap-3 p-3 pt-0">
+                            {genderGroup.profiles.map(renderProfileRow)}
+                          </ul>
+                        </details>
+                      ))}
+                    </div>
                   </details>
                 ))}
               </div>

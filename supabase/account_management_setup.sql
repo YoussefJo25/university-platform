@@ -28,7 +28,7 @@ set search_path = public
 as $$
 declare
   actor_name text;
-  target_name text;
+  target_name text; 
 begin
   if not is_super_admin() then
     raise exception 'Unauthorized: only super_admin can delete users';
