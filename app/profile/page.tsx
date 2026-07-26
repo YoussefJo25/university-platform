@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "@/components/ProfileForm";
+import ChangePasswordForm from "@/components/ChangePasswordForm";
 import { roleLabel } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,11 @@ type Profile = {
   phone: string | null;
   role: string;
   created_at: string;
+  university_id: number | null;
+  year_id: number | null;
 };
+type UniversityOption = { id: number; name: string };
+type YearOption = { id: number; name: string; university_id: number | null };
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -25,13 +30,23 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  const { data: profileData } = await supabase
-    .from("profiles")
-    .select("full_name, email, phone, role, created_at")
-    .eq("id", user.id)
-    .single();
+  const [{ data: profileData }, { data: universitiesData }, { data: yearsData }] =
+    await Promise.all([
+      supabase
+        .from("profiles")
+        .select("full_name, email, phone, role, created_at, university_id, year_id")
+        .eq("id", user.id)
+        .single(),
+      supabase.from("universities").select("id, name").order("order_index"),
+      supabase.from("years").select("id, name, university_id").order("year_number"),
+    ]);
 
   const profile = profileData as Profile | null;
+  const universities = (universitiesData ?? []) as UniversityOption[];
+  const years = (yearsData ?? []) as YearOption[];
+
+  const universityName = universities.find((u) => u.id === profile?.university_id)?.name;
+  const yearName = years.find((y) => y.id === profile?.year_id)?.name;
 
   const createdAt = profile?.created_at
     ? new Date(profile.created_at).toLocaleDateString("ar-EG", {
@@ -64,6 +79,14 @@ export default async function ProfilePage() {
                   {roleLabel(profile?.role)}
                 </dd>
               </div>
+              <div>
+                <dt className="text-xs font-medium text-muted">الجامعة</dt>
+                <dd className="mt-1 text-sm font-semibold text-ink">{universityName ?? "—"}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-medium text-muted">الفرقة الدراسية</dt>
+                <dd className="mt-1 text-sm font-semibold text-ink">{yearName ?? "—"}</dd>
+              </div>
               {createdAt && (
                 <div>
                   <dt className="text-xs font-medium text-muted">تاريخ إنشاء الحساب</dt>
@@ -73,7 +96,16 @@ export default async function ProfilePage() {
             </dl>
           </div>
 
-          <ProfileForm fullName={profile?.full_name ?? ""} phone={profile?.phone ?? ""} />
+          <ProfileForm
+            fullName={profile?.full_name ?? ""}
+            phone={profile?.phone ?? ""}
+            universityId={profile?.university_id ?? null}
+            yearId={profile?.year_id ?? null}
+            universities={universities}
+            years={years}
+          />
+
+          <ChangePasswordForm />
         </div>
       </section>
     </div>

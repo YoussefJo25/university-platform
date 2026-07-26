@@ -4,19 +4,38 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+type UniversityOption = { id: number; name: string };
+type YearOption = { id: number; name: string; university_id: number | null };
+
 export default function ProfileForm({
   fullName,
   phone,
+  universityId,
+  yearId,
+  universities,
+  years,
 }: {
   fullName: string;
   phone: string;
+  universityId: number | null;
+  yearId: number | null;
+  universities: UniversityOption[];
+  years: YearOption[];
 }) {
   const router = useRouter();
   const [name, setName] = useState(fullName);
   const [phoneNumber, setPhoneNumber] = useState(phone);
+  const [selectedUniversityId, setSelectedUniversityId] = useState<number | string>(
+    universityId ?? universities[0]?.id ?? ""
+  );
+  const [selectedYearId, setSelectedYearId] = useState<number | string>(yearId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  function yearsForUniversity(uniId: number | string): YearOption[] {
+    return years.filter((y) => String(y.university_id) === String(uniId));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -31,6 +50,11 @@ export default function ProfileForm({
 
     if (!/^\d{10,15}$/.test(phoneNumber)) {
       setError("رقم الهاتف لازم يكون أرقام فقط، بين 10 و15 رقم.");
+      return;
+    }
+
+    if (!selectedUniversityId || !selectedYearId) {
+      setError("من فضلك اختر الجامعة والفرقة الدراسية.");
       return;
     }
 
@@ -49,7 +73,12 @@ export default function ProfileForm({
 
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({ full_name: name.trim(), phone: phoneNumber })
+      .update({
+        full_name: name.trim(),
+        phone: phoneNumber,
+        university_id: Number(selectedUniversityId),
+        year_id: Number(selectedYearId),
+      })
       .eq("id", user.id);
 
     setSaving(false);
@@ -97,6 +126,51 @@ export default function ProfileForm({
           onChange={(e) => setPhoneNumber(e.target.value)}
           className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
         />
+      </div>
+
+      <div>
+        <label htmlFor="university" className="mb-1.5 block text-sm font-medium text-ink">
+          الجامعة
+        </label>
+        <select
+          id="university"
+          required
+          value={selectedUniversityId}
+          onChange={(e) => {
+            const nextUniId = e.target.value;
+            setSelectedUniversityId(nextUniId);
+            setSelectedYearId(yearsForUniversity(nextUniId)[0]?.id ?? "");
+          }}
+          className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
+        >
+          {universities.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label htmlFor="year" className="mb-1.5 block text-sm font-medium text-ink">
+          الفرقة الدراسية
+        </label>
+        <select
+          id="year"
+          required
+          value={selectedYearId}
+          onChange={(e) => setSelectedYearId(e.target.value)}
+          className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
+        >
+          {yearsForUniversity(selectedUniversityId).length === 0 && (
+            <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+          )}
+          {yearsForUniversity(selectedUniversityId).map((y) => (
+            <option key={y.id} value={y.id}>
+              {y.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

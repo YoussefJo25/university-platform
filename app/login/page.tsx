@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [gender, setGender] = useState("");
   const [universities, setUniversities] = useState<UniversityOption[]>([]);
   const [years, setYears] = useState<YearOption[]>([]);
   const [universityId, setUniversityId] = useState("");
@@ -84,6 +85,11 @@ export default function LoginPage() {
         setError("من فضلك اختر الجامعة والفرقة الدراسية.");
         return;
       }
+
+      if (gender !== "male" && gender !== "female") {
+        setError("من فضلك اختر الجنس.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -101,6 +107,7 @@ export default function LoginPage() {
               phone,
               university_id: Number(universityId),
               year_id: Number(yearId),
+              gender,
             },
           },
         });
@@ -193,6 +200,22 @@ export default function LoginPage() {
                   className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
                   placeholder="01xxxxxxxxx"
                 />
+              </div>
+            )}
+
+            {!isLogin && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-ink">الجنس</label>
+                <select
+                  required
+                  value={gender}
+                  onChange={(e) => setGender(e.target.value)}
+                  className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
+                >
+                  <option value="">اختر الجنس</option>
+                  <option value="male">ذكر</option>
+                  <option value="female">أنثى</option>
+                </select>
               </div>
             )}
 
