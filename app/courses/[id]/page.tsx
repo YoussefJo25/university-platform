@@ -174,6 +174,12 @@ export default async function CourseDetailPage({
 
   const course = courseData as unknown as CourseRow;
 
+  // إحصائية بسيطة لعدد الزيارات — بعد التأكد إن الـ id موجود وصحيح فوق
+  // (notFound() لأي id غلط)، عشان مانزودش عداد لصفحات مش موجودة. بنتجاهل
+  // أي error هنا (زي لو migration content_stats_setup.sql لسه معملوش)
+  // عشان ميوقفش عرض الصفحة.
+  await supabase.rpc("increment_course_views", { target_course_id: course.id });
+
   const [childrenRes, parentRes] = await Promise.all([
     supabase
       .from("courses")

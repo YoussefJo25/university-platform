@@ -68,6 +68,7 @@ type Course = {
   term_id: number | null;
   category: CourseCategory;
   parent_course_id: number | null;
+  view_count: number;
 };
 type Book = {
   id: number;
@@ -137,6 +138,7 @@ const SUPER_ADMIN_ONLY_TABS: TabKey[] = [
   "leadership",
   "auditLog",
   "reports",
+  "stats",
 ];
 
 type TabKey =
@@ -148,7 +150,8 @@ type TabKey =
   | "settings"
   | "leadership"
   | "auditLog"
-  | "reports";
+  | "reports"
+  | "stats";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "universities", label: "الجامعات" },
@@ -160,6 +163,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "leadership", label: "القيادة" },
   { key: "auditLog", label: "سجل النشاط" },
   { key: "reports", label: "البلاغات" },
+  { key: "stats", label: "الإحصائيات" },
 ];
 
 const inputClasses =
@@ -203,12 +207,22 @@ export default function AdminPage() {
   }
 
   async function fetchCourses() {
+    const withViewCount = await supabase
+      .from("courses")
+      .select("id, name, description, year_id, term_id, category, parent_course_id, view_count")
+      .order("name");
+
+    if (!withViewCount.error) return withViewCount;
+
+    // view_count ممكن يكون لسه معملوش migration (content_stats_setup.sql)
     const full = await supabase
       .from("courses")
       .select("id, name, description, year_id, term_id, category, parent_course_id")
       .order("name");
 
-    if (!full.error) return full;
+    if (!full.error) {
+      return { ...full, data: (full.data ?? []).map((c) => ({ ...c, view_count: 0 })) };
+    }
 
     // parent_course_id ممكن يكون لسه معملوش migration (course_sections_setup.sql)
     // نرجع لاستعلام بدونه عشان باقي التاب مايتوقفش بالكامل
@@ -220,11 +234,15 @@ export default function AdminPage() {
     if (!withoutParent.error) {
       return {
         ...withoutParent,
-        data: (withoutParent.data ?? []).map((c) => ({ ...c, parent_course_id: null })),
+        data: (withoutParent.data ?? []).map((c) => ({
+          ...c,
+          parent_course_id: null,
+          view_count: 0,
+        })),
       };
     }
 
-    return full;
+    return withViewCount;
   }
 
   async function fetchPlaylists() {
@@ -562,6 +580,9 @@ export default function AdminPage() {
               {activeTab === "auditLog" && <AuditLogTab entries={auditLog} />}
               {activeTab === "reports" && (
                 <ReportsTab reports={contentReports} supabase={supabase} onChange={loadAll} />
+              )}
+              {activeTab === "stats" && (
+                <StatsTab courses={courses} universities={universities} years={years} />
               )}
             </div>
           )}
@@ -1537,6 +1558,71 @@ function ReportsTab({
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function StatsTab({
+  courses,
+  universities,
+  years,
+}: {
+  courses: Course[];
+  universities: University[];
+  years: Year[];
+}) {
+  const totalViews = courses.reduce((sum, c) => sum + (c.view_count || 0), 0);
+
+  const topCourses = [...courses]
+    .sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
+    .slice(0, 15);
+
+  function courseContext(course: Course): string {
+    if (course.category === "learning_path") return "مسار تعلم برمجة";
+    const year = years.find((y) => y.id === course.year_id);
+    const university = universities.find((u) => u.id === year?.university_id);
+    return [university?.name, year?.name].filter(Boolean).join(" — ") || "—";
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <p className="text-sm text-muted">إجمالي عدد الزيارات لكل المواد</p>
+        <p className="mt-1 text-3xl font-extrabold text-ink">
+          {totalViews.toLocaleString("ar-EG")}
+        </p>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
+        <table className="w-full text-right text-sm">
+          <thead>
+            <tr className="border-b border-subtle text-xs text-muted">
+              <th className="px-4 py-3 font-medium">#</th>
+              <th className="px-4 py-3 font-medium">المادة</th>
+              <th className="px-4 py-3 font-medium">الجامعة / الفرقة</th>
+              <th className="px-4 py-3 font-medium">عدد الزيارات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {topCourses.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-muted">
+                  لا توجد بيانات كفاية بعد
+                </td>
+              </tr>
+            ) : (
+              topCourses.map((course, index) => (
+                <tr key={course.id} className="border-b border-subtle last:border-0">
+                  <td className="px-4 py-3 text-muted">{index + 1}</td>
+                  <td className="px-4 py-3 font-medium text-ink">{course.name}</td>
+                  <td className="px-4 py-3 text-muted">{courseContext(course)}</td>
+                  <td className="px-4 py-3 font-semibold text-gold">{course.view_count}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
