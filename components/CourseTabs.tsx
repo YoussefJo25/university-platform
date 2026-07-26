@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReportIssueButton from "@/components/ReportIssueButton";
 
 type BookRow = {
   id: number;
@@ -55,6 +56,7 @@ function buildSourceGroups(playlistGroups: PlaylistGroup[]): SourceGroup[] {
 }
 
 type CourseTabsProps = {
+  courseId: number;
   description: string | null;
   bookFolders: BookFolderGroup[];
   unfiledBooks: BookRow[];
@@ -70,6 +72,7 @@ const tabs = [
 type TabKey = (typeof tabs)[number]["key"];
 
 export default function CourseTabs({
+  courseId,
   description,
   bookFolders,
   unfiledBooks,
@@ -115,10 +118,16 @@ export default function CourseTabs({
             ) : (
               <div className="mt-4 flex flex-col gap-3">
                 {bookFolders.map((folder) => (
-                  <BookFolderAccordion key={folder.id} name={folder.name} books={folder.books} />
+                  <BookFolderAccordion
+                    key={folder.id}
+                    courseId={courseId}
+                    name={folder.name}
+                    books={folder.books}
+                  />
                 ))}
                 {unfiledBooks.length > 0 && (
                   <BookFolderAccordion
+                    courseId={courseId}
                     name="ملفات عامة"
                     books={unfiledBooks}
                     defaultOpen={bookFolders.length === 0}
@@ -135,7 +144,7 @@ export default function CourseTabs({
             {playlistGroups.length === 0 ? (
               <p className="mt-3 text-sm text-muted">لا توجد فيديوهات مضافة بعد</p>
             ) : (
-              <VideoPlayer playlistGroups={playlistGroups} />
+              <VideoPlayer courseId={courseId} playlistGroups={playlistGroups} />
             )}
           </div>
         )}
@@ -144,7 +153,13 @@ export default function CourseTabs({
   );
 }
 
-function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
+function VideoPlayer({
+  courseId,
+  playlistGroups,
+}: {
+  courseId: number;
+  playlistGroups: PlaylistGroup[];
+}) {
   const [selectedGroupId, setSelectedGroupId] = useState(playlistGroups[0]?.id);
   const selectedGroup = playlistGroups.find((g) => g.id === selectedGroupId) ?? playlistGroups[0];
 
@@ -208,18 +223,25 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
               الرابط غير صالح
             </div>
           )}
-          <p className="mt-3 font-semibold text-ink">{selectedVideo.title}</p>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="font-semibold text-ink">{selectedVideo.title}</p>
+            <ReportIssueButton
+              courseId={courseId}
+              itemType="video"
+              itemTitle={selectedVideo.title}
+            />
+          </div>
         </div>
 
         {selectedGroup.videos.length > 1 && (
           <ul className="flex flex-col gap-2 sm:w-72 sm:shrink-0">
             {selectedGroup.videos.map((video) => (
-              <li key={video.id}>
+              <li key={video.id} className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setSelectedVideoId(video.id)}
                   aria-pressed={video.id === selectedVideo.id}
-                  className={`w-full rounded-xl px-4 py-3 text-right text-sm font-medium transition-colors ${
+                  className={`flex-1 rounded-xl px-4 py-3 text-right text-sm font-medium transition-colors ${
                     video.id === selectedVideo.id
                       ? "bg-gold text-gold-ink shadow-sm"
                       : "bg-panel text-muted hover:bg-card"
@@ -227,6 +249,7 @@ function VideoPlayer({ playlistGroups }: { playlistGroups: PlaylistGroup[] }) {
                 >
                   {video.title}
                 </button>
+                <ReportIssueButton courseId={courseId} itemType="video" itemTitle={video.title} compact />
               </li>
             ))}
           </ul>
@@ -312,10 +335,12 @@ function SourceGroupSelector({
 }
 
 function BookFolderAccordion({
+  courseId,
   name,
   books,
   defaultOpen = false,
 }: {
+  courseId: number;
   name: string;
   books: BookRow[];
   defaultOpen?: boolean;
@@ -358,16 +383,19 @@ function BookFolderAccordion({
                     <p className="font-semibold text-ink">{book.title}</p>
                     {book.author && <p className="text-sm text-muted">{book.author}</p>}
                   </div>
-                  {book.file_url && (
-                    <a
-                      href={book.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm transition-transform hover:scale-105"
-                    >
-                      تحميل الكتاب
-                    </a>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <ReportIssueButton courseId={courseId} itemType="book" itemTitle={book.title} />
+                    {book.file_url && (
+                      <a
+                        href={book.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm transition-transform hover:scale-105"
+                      >
+                        تحميل الكتاب
+                      </a>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

@@ -118,6 +118,16 @@ type AuditLogRow = {
   target_description: string;
   created_at: string;
 };
+type ContentReportRow = {
+  id: number;
+  course_id: number;
+  item_type: "video" | "book" | "course";
+  item_title: string;
+  issue_type: "broken_link" | "wrong_content" | "other";
+  description: string | null;
+  status: "open" | "resolved";
+  created_at: string;
+};
 
 // التابات دي محصورة على super_admin بس (تختفي تمامًا من واجهة year_admin)
 const SUPER_ADMIN_ONLY_TABS: TabKey[] = [
@@ -126,6 +136,7 @@ const SUPER_ADMIN_ONLY_TABS: TabKey[] = [
   "settings",
   "leadership",
   "auditLog",
+  "reports",
 ];
 
 type TabKey =
@@ -136,7 +147,8 @@ type TabKey =
   | "playlists"
   | "settings"
   | "leadership"
-  | "auditLog";
+  | "auditLog"
+  | "reports";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "universities", label: "الجامعات" },
@@ -147,6 +159,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "settings", label: "إعدادات الموقع" },
   { key: "leadership", label: "القيادة" },
   { key: "auditLog", label: "سجل النشاط" },
+  { key: "reports", label: "البلاغات" },
 ];
 
 const inputClasses =
@@ -172,6 +185,7 @@ export default function AdminPage() {
   const [profiles, setProfiles] = useState<ProfileRow[]>([]);
   const [yearManagers, setYearManagers] = useState<YearManagerRow[]>([]);
   const [auditLog, setAuditLog] = useState<AuditLogRow[]>([]);
+  const [contentReports, setContentReports] = useState<ContentReportRow[]>([]);
   const [activeManagedYearId, setActiveManagedYearId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   // بيتفعّل مرة واحدة بس أول ما أي تحميل ينجح، وبيفضل true بعد كده — عشان
@@ -258,6 +272,7 @@ export default function AdminPage() {
       profilesRes,
       yearManagersRes,
       auditLogRes,
+      contentReportsRes,
     ] = await Promise.all([
       supabase.auth.getUser(),
       supabase
@@ -298,6 +313,10 @@ export default function AdminPage() {
         .select("id, actor_name, action_type, target_description, created_at")
         .order("created_at", { ascending: false })
         .limit(200),
+      supabase
+        .from("content_reports")
+        .select("id, course_id, item_type, item_title, issue_type, description, status, created_at")
+        .order("created_at", { ascending: false }),
     ]);
 
     setCurrentUserId(userRes.data.user?.id ?? null);
@@ -340,6 +359,10 @@ export default function AdminPage() {
 
     if (!auditLogRes.error) {
       setAuditLog((auditLogRes.data ?? []) as AuditLogRow[]);
+    }
+
+    if (!contentReportsRes.error) {
+      setContentReports((contentReportsRes.data ?? []) as ContentReportRow[]);
     }
 
     if (!yearManagersRes.error) {
@@ -537,6 +560,9 @@ export default function AdminPage() {
                 />
               )}
               {activeTab === "auditLog" && <AuditLogTab entries={auditLog} />}
+              {activeTab === "reports" && (
+                <ReportsTab reports={contentReports} supabase={supabase} onChange={loadAll} />
+              )}
             </div>
           )}
         </div>
@@ -1387,6 +1413,124 @@ function AuditLogTab({ entries }: { entries: AuditLogRow[] }) {
                 <td className="px-4 py-3 text-muted">{entry.target_description}</td>
                 <td className="px-4 py-3 text-xs whitespace-nowrap text-muted">
                   {new Date(entry.created_at).toLocaleString("ar-EG")}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const ITEM_TYPE_LABELS: Record<string, string> = {
+  video: "فيديو",
+  book: "كتاب",
+  course: "مادة",
+};
+
+const ISSUE_TYPE_LABELS: Record<string, string> = {
+  broken_link: "رابط معطّل",
+  wrong_content: "محتوى غير صحيح",
+  other: "أخرى",
+};
+
+function ReportsTab({
+  reports,
+  supabase,
+  onChange,
+}: {
+  reports: ContentReportRow[];
+  supabase: SupabaseClient;
+  onChange: () => void;
+}) {
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  // المفتوحة فوق، المُعالَجة تحتها — بدل ما تتحذف بيتغيّر لونها بس.
+  const orderedReports = [...reports].sort((a, b) => {
+    if (a.status === b.status) return 0;
+    return a.status === "open" ? -1 : 1;
+  });
+
+  async function handleToggleStatus(report: ContentReportRow) {
+    setBusyId(report.id);
+    const nextStatus = report.status === "open" ? "resolved" : "open";
+
+    const { error } = await supabase
+      .from("content_reports")
+      .update({ status: nextStatus })
+      .eq("id", report.id);
+
+    setBusyId(null);
+
+    if (error) {
+      alert(`فشل تحديث حالة البلاغ: ${error.message}`);
+      return;
+    }
+
+    onChange();
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
+      <table className="w-full text-right text-sm">
+        <thead>
+          <tr className="border-b border-subtle text-xs text-muted">
+            <th className="px-4 py-3 font-medium">النوع</th>
+            <th className="px-4 py-3 font-medium">العنصر</th>
+            <th className="px-4 py-3 font-medium">نوع المشكلة</th>
+            <th className="px-4 py-3 font-medium">الوصف</th>
+            <th className="px-4 py-3 font-medium">التاريخ</th>
+            <th className="px-4 py-3 font-medium">الحالة</th>
+            <th className="px-4 py-3 font-medium" />
+          </tr>
+        </thead>
+        <tbody>
+          {orderedReports.length === 0 ? (
+            <tr>
+              <td colSpan={7} className="px-4 py-6 text-center text-muted">
+                لا توجد بلاغات حتى الآن
+              </td>
+            </tr>
+          ) : (
+            orderedReports.map((report) => (
+              <tr
+                key={report.id}
+                className={`border-b border-subtle last:border-0 ${
+                  report.status === "resolved" ? "opacity-60" : ""
+                }`}
+              >
+                <td className="px-4 py-3 text-muted">
+                  {ITEM_TYPE_LABELS[report.item_type] ?? report.item_type}
+                </td>
+                <td className="px-4 py-3 font-medium text-ink">{report.item_title}</td>
+                <td className="px-4 py-3 text-muted">
+                  {ISSUE_TYPE_LABELS[report.issue_type] ?? report.issue_type}
+                </td>
+                <td className="max-w-xs px-4 py-3 text-muted">{report.description || "—"}</td>
+                <td className="px-4 py-3 text-xs whitespace-nowrap text-muted">
+                  {new Date(report.created_at).toLocaleString("ar-EG")}
+                </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                      report.status === "open"
+                        ? "bg-red-600/10 text-red-600"
+                        : "bg-gold/10 text-gold"
+                    }`}
+                  >
+                    {report.status === "open" ? "مفتوح" : "معالَج"}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    disabled={busyId === report.id}
+                    onClick={() => handleToggleStatus(report)}
+                    className="text-sm font-medium text-gold hover:underline disabled:opacity-60"
+                  >
+                    {report.status === "open" ? "تحديد كمُعالَج" : "إعادة فتح"}
+                  </button>
                 </td>
               </tr>
             ))

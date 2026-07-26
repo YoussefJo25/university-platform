@@ -281,6 +281,7 @@ export default async function CourseDetailPage({
             </div>
           ) : (
             <CourseTabs
+              courseId={course.id}
               description={course.description}
               bookFolders={bookFolders}
               unfiledBooks={unfiledBooks}
