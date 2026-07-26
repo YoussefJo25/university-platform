@@ -88,10 +88,10 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
           <Image
             src={logoUrl || "/logo.jpeg"}
             alt={`شعار ${universityName}`}
-            width={48}
-            height={48}
+            width={72}
+            height={72}
             priority
-            className="h-10 w-10 shrink-0 rounded-full border-2 border-gold/80 object-cover shadow-sm sm:h-12 sm:w-12"
+            className="h-14 w-14 shrink-0 rounded-lg border border-gold/40 object-contain shadow-sm sm:h-16 sm:w-16"
           />
           <span className="font-display text-base font-bold text-ink sm:text-xl">
             {universityName}
