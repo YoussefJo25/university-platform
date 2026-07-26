@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   DEFAULT_SITE_SETTINGS,
@@ -14,6 +14,23 @@ import ContentTree from "@/components/admin/ContentTree";
 const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 const MAX_BIO_LENGTH = 500;
+
+// بنستخدم history API مباشرة (مش next/navigation) عشان تحديث الرابط ده
+// مجرد "بوكماركينج" بصري بعد كل اختيار — مفيش داعي لأي navigation حقيقية
+// أو لإعادة تشغيل أي data fetching بتاع الصفحة.
+function getUrlParam(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get(key);
+}
+
+function setUrlParam(key: string, value: string | null) {
+  if (typeof window === "undefined") return;
+  const params = new URLSearchParams(window.location.search);
+  if (value === null) params.delete(key);
+  else params.set(key, value);
+  const query = params.toString();
+  window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+}
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -138,7 +155,10 @@ const inputClasses =
 export default function AdminPage() {
   const supabase = createClient();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("courses");
+  const [activeTab, setActiveTabState] = useState<TabKey>(() => {
+    const fromUrl = getUrlParam("tab") as TabKey | null;
+    return fromUrl && tabs.some((t) => t.key === fromUrl) ? fromUrl : "courses";
+  });
   const [universities, setUniversities] = useState<University[]>([]);
   const [years, setYears] = useState<Year[]>([]);
   const [terms, setTerms] = useState<Term[]>([]);
@@ -154,7 +174,19 @@ export default function AdminPage() {
   const [auditLog, setAuditLog] = useState<AuditLogRow[]>([]);
   const [activeManagedYearId, setActiveManagedYearId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  // بيتفعّل مرة واحدة بس أول ما أي تحميل ينجح، وبيفضل true بعد كده — عشان
+  // الشجرة/الفورمات مايترمنتيش (يفقدوا الـ state المحلي زي العقد المفتوحة
+  // والمادة المختارة) كل مرة onChange بيعمل reload كامل للبيانات بعد أي
+  // إضافة/تعديل. الرسالة الكبيرة "جارٍ التحميل..." تظهر أول مرة بس؛ بعد
+  // كده أي reload لاحق بيفضل التاب زي ما هو وبيوضّح مؤشر بسيط مكانه.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function setActiveTab(tab: TabKey) {
+    setActiveTabState(tab);
+    setUrlParam("tab", tab);
+    setUrlParam("courseId", null);
+  }
 
   async function fetchCourses() {
     const full = await supabase
@@ -321,6 +353,7 @@ export default function AdminPage() {
     }
 
     setLoading(false);
+    setHasLoadedOnce(true);
   }
 
   useEffect(() => {
@@ -432,10 +465,13 @@ export default function AdminPage() {
 
           {error && <p className="mt-6 text-center text-sm text-red-600">{error}</p>}
 
-          {loading ? (
+          {!hasLoadedOnce ? (
             <p className="mt-6 text-center text-sm text-muted">جارٍ التحميل...</p>
           ) : (
             <div className="mt-6">
+              {loading && (
+                <p className="mb-3 text-xs text-muted">جارٍ التحديث...</p>
+              )}
               {activeTab === "universities" && (
                 <UniversitiesTab
                   universities={universities}
@@ -1405,9 +1441,23 @@ function CoursesTab({
     term_id: termsForYear(initialYearId)[0]?.id ?? "",
     parent_course_id: "",
   };
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingIdState] = useState<number | null>(null);
   const [form, setForm] = useState(empty);
   const [saving, setSaving] = useState(false);
+  // الـ id المستعاد من الرابط (لو موجود) — بيتستهلك مرة واحدة أول ما المادة
+  // المطابقة تبقى متاحة في courses (زي لما يحصل reload حقيقي للصفحة أو
+  // refresh يدوي وإنت واقف على مادة بتعدّلها).
+  const pendingUrlCourseId = useRef<number | null>(
+    (() => {
+      const raw = getUrlParam("courseId");
+      return raw ? Number(raw) : null;
+    })()
+  );
+
+  function setEditingId(id: number | null) {
+    setEditingIdState(id);
+    setUrlParam("courseId", id ? String(id) : null);
+  }
 
   const availableYears = yearsForUniversity(form.university_id);
   const availableTerms = termsForYear(form.year_id);
@@ -1455,6 +1505,20 @@ function CoursesTab({
     setEditingId(null);
     setForm(empty);
   }
+
+  // بعد أي reload (سواء إضافة/تعديل عادي أو F5 حقيقي)، لو فيه courseId
+  // جاي من الرابط ولسه مستهلكش، وربطنا الآن استلمنا بيانات المادة دي في
+  // courses، افتحها للتعديل زي ما كانت بالظبط.
+  useEffect(() => {
+    if (pendingUrlCourseId.current !== null && editingId === null) {
+      const course = courses.find((c) => c.id === pendingUrlCourseId.current);
+      if (course) {
+        startEdit(course);
+        pendingUrlCourseId.current = null;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1691,7 +1755,10 @@ function BooksTab({
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
-  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+  const [selectedCourseId, setSelectedCourseIdState] = useState<number | null>(() => {
+    const raw = getUrlParam("courseId");
+    return raw ? Number(raw) : null;
+  });
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null;
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) ?? null;
@@ -1699,7 +1766,8 @@ function BooksTab({
   const unfiledBooks = books.filter((b) => !b.folder_id && b.course_id === selectedCourseId);
 
   function handleSelectCourse(courseId: number) {
-    setSelectedCourseId(courseId);
+    setSelectedCourseIdState(courseId);
+    setUrlParam("courseId", String(courseId));
     setSelectedFolderId(null);
   }
 
@@ -2145,7 +2213,10 @@ function PlaylistsTab({
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
-  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+  const [selectedCourseId, setSelectedCourseIdState] = useState<number | null>(() => {
+    const raw = getUrlParam("courseId");
+    return raw ? Number(raw) : null;
+  });
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null;
   const coursePlaylists = playlists.filter((p) => p.course_id === selectedCourseId);
 
@@ -2180,7 +2251,8 @@ function PlaylistsTab({
   }
 
   function handleSelectCourse(courseId: number) {
-    setSelectedCourseId(courseId);
+    setSelectedCourseIdState(courseId);
+    setUrlParam("courseId", String(courseId));
     resetForm();
   }
 
