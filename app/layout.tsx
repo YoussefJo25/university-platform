@@ -27,10 +27,25 @@ const displayFontEn = Playfair_Display({
   variable: "--font-display-en",
 });
 
-export const metadata: Metadata = {
-  title: "جامعة المنيا الاهلية",
-  description: "المنصة الإلكترونية لجامعة المنيا الاهلية",
-};
+// ديناميكي من site_settings بدل ثابت في الكود، عشان تغيير الاسم أو
+// اللوجو من /admin ينعكس فورًا على بيانات المشاركة (Open Graph) والعنوان،
+// من غير ما يحتاج تعديل كود جديد كل مرة. لو صفحة معينة عايزة عنوان خاص
+// بيها لاحقًا، تقدر تصدّر metadata/generateMetadata خاصة بيها وهتفضل
+// الأساسية دي Fallback للصفحات اللي مالهاش عنوان مخصص.
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSiteSettings();
+
+  return {
+    title: settings.university_name,
+    description: settings.hero_subtitle,
+    openGraph: {
+      title: settings.university_name,
+      description: settings.hero_subtitle,
+      images: settings.logo_url ? [{ url: settings.logo_url }] : [],
+    },
+    icons: settings.logo_url ? { icon: settings.logo_url } : undefined,
+  };
+}
 
 export default async function RootLayout({
   children,
