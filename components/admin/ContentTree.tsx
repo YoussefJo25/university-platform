@@ -12,6 +12,7 @@ type TreeCourse = {
   term_id: number | null;
   category: "academic" | "learning_path";
   parent_course_id: number | null;
+  order_index: number;
 };
 
 type ContentTreeProps = {
@@ -27,6 +28,11 @@ type ContentTreeProps = {
   // اختياره وسط عملية حفظ لسه ماخلصتش ويحصل لبس عن أنهي مادة اتحفظ ليها
   // الحاجة اللي بيضيفها.
   disabled?: boolean;
+  // لو موجودة، بيظهر جنب كل مادة/قسم (في وضع التصفح العادي بس، مش نتايج
+  // البحث، عشان الترتيب مالوش معنى غير جوه مجموعة إخوة واحدة) حقل رقمي
+  // صغير لترتيبها بين إخواتها (تحت نفس الأب/الترم). مش موجودة يعني
+  // الشجرة للتصفح والاختيار بس (زي تابي الكتب والفيديوهات).
+  onReorder?: (courseId: number, newOrderIndex: number) => void;
 };
 
 const CHEVRON_PATH = "M8.25 4.5l7.5 7.5-7.5 7.5";
@@ -40,6 +46,7 @@ export default function ContentTree({
   onSelectCourse,
   showLearningPath = true,
   disabled = false,
+  onReorder,
 }: ContentTreeProps) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(
@@ -179,6 +186,10 @@ export default function ContentTree({
                                     depth={4}
                                     selected={selectedCourseId === course.id}
                                     onClick={() => selectCourse(course.id)}
+                                    orderIndex={course.order_index}
+                                    onReorder={
+                                      onReorder ? (value) => onReorder(course.id, value) : undefined
+                                    }
                                   />
                                 ))}
                             </TreeBranch>
@@ -206,6 +217,7 @@ export default function ContentTree({
                     onToggle={toggle}
                     selectedCourseId={selectedCourseId}
                     onSelectCourse={selectCourse}
+                    onReorder={onReorder}
                   />
                 ))}
               </TreeBranch>
@@ -280,23 +292,40 @@ function TreeLeaf({
   depth,
   selected,
   onClick,
+  orderIndex,
+  onReorder,
 }: {
   label: string;
   depth: number;
   selected: boolean;
   onClick: () => void;
+  orderIndex?: number;
+  onReorder?: (newOrderIndex: number) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ paddingRight: `${depth * 14 + 8}px` }}
-      className={`rounded-lg px-2 py-1.5 text-right text-sm transition-colors ${
-        selected ? "bg-gold/10 font-semibold text-gold" : "text-muted hover:bg-panel hover:text-ink"
-      }`}
-    >
-      {label}
-    </button>
+    <div className="flex items-center gap-1" style={{ paddingRight: `${depth * 14 + 8}px` }}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`flex-1 rounded-lg px-2 py-1.5 text-right text-sm transition-colors ${
+          selected ? "bg-gold/10 font-semibold text-gold" : "text-muted hover:bg-panel hover:text-ink"
+        }`}
+      >
+        {label}
+      </button>
+      {onReorder && (
+        <input
+          type="number"
+          defaultValue={orderIndex ?? 0}
+          title="الترتيب بين إخوتها"
+          onBlur={(e) => {
+            const value = Number(e.target.value) || 0;
+            if (value !== orderIndex) onReorder(value);
+          }}
+          className="w-12 shrink-0 rounded-lg border border-subtle bg-panel px-1.5 py-1 text-center text-xs text-ink outline-none focus:border-gold"
+        />
+      )}
+    </div>
   );
 }
 
@@ -308,6 +337,7 @@ function LearningPathNode({
   onToggle,
   selectedCourseId,
   onSelectCourse,
+  onReorder,
 }: {
   course: TreeCourse;
   depth: number;
@@ -316,6 +346,7 @@ function LearningPathNode({
   onToggle: (key: string) => void;
   selectedCourseId: number | null;
   onSelectCourse: (id: number) => void;
+  onReorder?: (courseId: number, newOrderIndex: number) => void;
 }) {
   const children = childrenOf(course.id);
   const nodeKey = `course-${course.id}`;
@@ -329,6 +360,8 @@ function LearningPathNode({
         depth={depth}
         selected={isSelected}
         onClick={() => onSelectCourse(course.id)}
+        orderIndex={course.order_index}
+        onReorder={onReorder ? (value) => onReorder(course.id, value) : undefined}
       />
     );
   }
@@ -353,6 +386,18 @@ function LearningPathNode({
         >
           {course.name}
         </button>
+        {onReorder && (
+          <input
+            type="number"
+            defaultValue={course.order_index}
+            title="الترتيب بين إخوتها"
+            onBlur={(e) => {
+              const value = Number(e.target.value) || 0;
+              if (value !== course.order_index) onReorder(course.id, value);
+            }}
+            className="w-12 shrink-0 rounded-lg border border-subtle bg-panel px-1.5 py-1 text-center text-xs text-ink outline-none focus:border-gold"
+          />
+        )}
       </div>
       {isOpen && (
         <div className="flex flex-col gap-1">
@@ -366,6 +411,7 @@ function LearningPathNode({
               onToggle={onToggle}
               selectedCourseId={selectedCourseId}
               onSelectCourse={onSelectCourse}
+              onReorder={onReorder}
             />
           ))}
         </div>

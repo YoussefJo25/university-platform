@@ -38,11 +38,24 @@ export default async function TermDetailPage({
 
   const term = termData as unknown as TermRow;
 
-  const { data: coursesData, error: coursesError } = await supabase
+  let { data: coursesData, error: coursesError } = await supabase
     .from("courses")
     .select("id, name, description")
     .eq("term_id", termId)
+    .order("order_index")
     .order("name");
+
+  if (coursesError) {
+    // order_index ممكن يكون لسه معملوش migration (course_order_setup.sql)
+    const fallback = await supabase
+      .from("courses")
+      .select("id, name, description")
+      .eq("term_id", termId)
+      .order("name");
+
+    coursesData = fallback.data;
+    coursesError = fallback.error;
+  }
 
   const courses = (coursesData ?? []) as CourseRow[];
 

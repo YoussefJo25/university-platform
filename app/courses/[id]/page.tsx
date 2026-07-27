@@ -185,13 +185,26 @@ export default async function CourseDetailPage({
       .from("courses")
       .select("id, name, description")
       .eq("parent_course_id", id)
+      .order("order_index")
       .order("name"),
     course.parent_course_id
       ? supabase.from("courses").select("id, name").eq("id", course.parent_course_id).single()
       : Promise.resolve({ data: null, error: null }),
   ]);
 
-  const children = (childrenRes.error ? [] : (childrenRes.data ?? [])) as ChildCourseRow[];
+  // order_index ممكن يكون لسه معملوش migration (course_order_setup.sql) —
+  // نرجع لاستعلام بدونه بدل ما الأقسام الفرعية تختفي فجأة لحد ما يتشغّل
+  let childrenData = childrenRes.data;
+  if (childrenRes.error) {
+    const withoutOrder = await supabase
+      .from("courses")
+      .select("id, name, description")
+      .eq("parent_course_id", id)
+      .order("name");
+    childrenData = withoutOrder.error ? null : withoutOrder.data;
+  }
+
+  const children = (childrenData ?? []) as ChildCourseRow[];
   const parent = (parentRes.error ? null : parentRes.data) as ParentCourseRow | null;
   const hasChildren = children.length > 0;
 

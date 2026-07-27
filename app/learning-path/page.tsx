@@ -16,7 +16,21 @@ export default async function LearningPathPage() {
     .select("id, name, description")
     .eq("category", "learning_path")
     .is("parent_course_id", null)
+    .order("order_index")
     .order("name");
+
+  if (error) {
+    // order_index ممكن يكون لسه معملوش migration (course_order_setup.sql)
+    const withoutOrder = await supabase
+      .from("courses")
+      .select("id, name, description")
+      .eq("category", "learning_path")
+      .is("parent_course_id", null)
+      .order("name");
+
+    data = withoutOrder.data;
+    error = withoutOrder.error;
+  }
 
   if (error) {
     // parent_course_id ممكن يكون لسه معملوش migration (course_sections_setup.sql)

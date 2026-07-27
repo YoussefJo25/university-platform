@@ -69,6 +69,7 @@ type Course = {
   category: CourseCategory;
   parent_course_id: number | null;
   view_count: number;
+  order_index: number;
 };
 type Book = {
   id: number;
@@ -214,12 +215,25 @@ export default function AdminPage() {
   }
 
   async function fetchCourses() {
+    const withOrder = await supabase
+      .from("courses")
+      .select(
+        "id, name, description, year_id, term_id, category, parent_course_id, view_count, order_index"
+      )
+      .order("order_index")
+      .order("name");
+
+    if (!withOrder.error) return withOrder;
+
+    // order_index ممكن يكون لسه معملوش migration (course_order_setup.sql)
     const withViewCount = await supabase
       .from("courses")
       .select("id, name, description, year_id, term_id, category, parent_course_id, view_count")
       .order("name");
 
-    if (!withViewCount.error) return withViewCount;
+    if (!withViewCount.error) {
+      return { ...withViewCount, data: (withViewCount.data ?? []).map((c) => ({ ...c, order_index: 0 })) };
+    }
 
     // view_count ممكن يكون لسه معملوش migration (content_stats_setup.sql)
     const full = await supabase
@@ -228,7 +242,10 @@ export default function AdminPage() {
       .order("name");
 
     if (!full.error) {
-      return { ...full, data: (full.data ?? []).map((c) => ({ ...c, view_count: 0 })) };
+      return {
+        ...full,
+        data: (full.data ?? []).map((c) => ({ ...c, view_count: 0, order_index: 0 })),
+      };
     }
 
     // parent_course_id ممكن يكون لسه معملوش migration (course_sections_setup.sql)
@@ -245,11 +262,12 @@ export default function AdminPage() {
           ...c,
           parent_course_id: null,
           view_count: 0,
+          order_index: 0,
         })),
       };
     }
 
-    return withViewCount;
+    return withOrder;
   }
 
   async function fetchPlaylists() {
@@ -1864,6 +1882,11 @@ function CoursesTab({
     onChange();
   }
 
+  async function handleReorder(id: number, newOrderIndex: number) {
+    await supabase.from("courses").update({ order_index: newOrderIndex }).eq("id", id);
+    onChange();
+  }
+
   // أدمن الفرقة (restrictToAcademic) ميقدرش يدير مسارات تعلم البرمجة أصلًا
   // (مش مرتبطة بجامعة/فرقة، ومحجوزة لـ super_admin بس — نفس القيد اللي في
   // سياسات RLS بتاعة courses في roles_v2_policies_update.sql)، فبنقفل
@@ -1892,6 +1915,7 @@ function CoursesTab({
           onSelectCourse={handleTreeSelect}
           showLearningPath={!restrictToAcademic}
           disabled={addSaving || editSaving}
+          onReorder={handleReorder}
         />
       </div>
       <div className="flex flex-1 flex-col gap-8">
