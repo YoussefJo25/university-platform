@@ -33,6 +33,10 @@ type ContentTreeProps = {
   // صغير لترتيبها بين إخواتها (تحت نفس الأب/الترم). مش موجودة يعني
   // الشجرة للتصفح والاختيار بس (زي تابي الكتب والفيديوهات).
   onReorder?: (courseId: number, newOrderIndex: number) => void;
+  // لو موجودة، بيظهر زرار "نسخ" صغير جنب كل مادة/قسم (وضع التصفح العادي
+  // بس، زي onReorder) — مش موجودة يعني ميزة النسخ متاحة أصلًا للمستخدم
+  // الحالي (super_admin بس، حسب duplicate_course_setup.sql).
+  onDuplicate?: (courseId: number) => void;
 };
 
 const CHEVRON_PATH = "M8.25 4.5l7.5 7.5-7.5 7.5";
@@ -47,6 +51,7 @@ export default function ContentTree({
   showLearningPath = true,
   disabled = false,
   onReorder,
+  onDuplicate,
 }: ContentTreeProps) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(
@@ -68,6 +73,11 @@ export default function ContentTree({
   function selectCourse(courseId: number) {
     if (disabled) return;
     onSelectCourse(courseId);
+  }
+
+  function duplicateCourse(courseId: number) {
+    if (disabled || !onDuplicate) return;
+    onDuplicate(courseId);
   }
 
   function academicPath(course: TreeCourse): string {
@@ -190,6 +200,9 @@ export default function ContentTree({
                                     onReorder={
                                       onReorder ? (value) => onReorder(course.id, value) : undefined
                                     }
+                                    onDuplicate={
+                                      onDuplicate ? () => duplicateCourse(course.id) : undefined
+                                    }
                                   />
                                 ))}
                             </TreeBranch>
@@ -218,6 +231,7 @@ export default function ContentTree({
                     selectedCourseId={selectedCourseId}
                     onSelectCourse={selectCourse}
                     onReorder={onReorder}
+                    onDuplicate={onDuplicate ? duplicateCourse : undefined}
                   />
                 ))}
               </TreeBranch>
@@ -294,6 +308,7 @@ function TreeLeaf({
   onClick,
   orderIndex,
   onReorder,
+  onDuplicate,
 }: {
   label: string;
   depth: number;
@@ -301,6 +316,7 @@ function TreeLeaf({
   onClick: () => void;
   orderIndex?: number;
   onReorder?: (newOrderIndex: number) => void;
+  onDuplicate?: () => void;
 }) {
   return (
     <div className="flex items-center gap-1" style={{ paddingRight: `${depth * 14 + 8}px` }}>
@@ -325,6 +341,16 @@ function TreeLeaf({
           className="w-12 shrink-0 rounded-lg border border-subtle bg-panel px-1.5 py-1 text-center text-xs text-ink outline-none focus:border-gold"
         />
       )}
+      {onDuplicate && (
+        <button
+          type="button"
+          onClick={onDuplicate}
+          title="نسخ المادة"
+          className="shrink-0 rounded-lg px-1.5 py-1 text-xs text-muted transition-colors hover:bg-panel hover:text-ink"
+        >
+          📋
+        </button>
+      )}
     </div>
   );
 }
@@ -338,6 +364,7 @@ function LearningPathNode({
   selectedCourseId,
   onSelectCourse,
   onReorder,
+  onDuplicate,
 }: {
   course: TreeCourse;
   depth: number;
@@ -347,6 +374,7 @@ function LearningPathNode({
   selectedCourseId: number | null;
   onSelectCourse: (id: number) => void;
   onReorder?: (courseId: number, newOrderIndex: number) => void;
+  onDuplicate?: (courseId: number) => void;
 }) {
   const children = childrenOf(course.id);
   const nodeKey = `course-${course.id}`;
@@ -362,6 +390,7 @@ function LearningPathNode({
         onClick={() => onSelectCourse(course.id)}
         orderIndex={course.order_index}
         onReorder={onReorder ? (value) => onReorder(course.id, value) : undefined}
+        onDuplicate={onDuplicate ? () => onDuplicate(course.id) : undefined}
       />
     );
   }
@@ -398,6 +427,16 @@ function LearningPathNode({
             className="w-12 shrink-0 rounded-lg border border-subtle bg-panel px-1.5 py-1 text-center text-xs text-ink outline-none focus:border-gold"
           />
         )}
+        {onDuplicate && (
+          <button
+            type="button"
+            onClick={() => onDuplicate(course.id)}
+            title="نسخ المادة"
+            className="shrink-0 rounded-lg px-1.5 py-1 text-xs text-muted transition-colors hover:bg-panel hover:text-ink"
+          >
+            📋
+          </button>
+        )}
       </div>
       {isOpen && (
         <div className="flex flex-col gap-1">
@@ -412,6 +451,7 @@ function LearningPathNode({
               selectedCourseId={selectedCourseId}
               onSelectCourse={onSelectCourse}
               onReorder={onReorder}
+              onDuplicate={onDuplicate}
             />
           ))}
         </div>

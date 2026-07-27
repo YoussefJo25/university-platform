@@ -562,6 +562,8 @@ export default function AdminPage() {
                   years={visibleYears}
                   terms={terms}
                   courses={visibleCourses}
+                  books={visibleBooks}
+                  playlists={visiblePlaylists}
                   restrictToAcademic={isYearAdmin}
                   supabase={supabase}
                   onChange={loadAll}
@@ -1657,6 +1659,8 @@ function CoursesTab({
   years,
   terms,
   courses,
+  books,
+  playlists,
   restrictToAcademic = false,
   supabase,
   onChange,
@@ -1665,10 +1669,14 @@ function CoursesTab({
   years: Year[];
   terms: Term[];
   courses: Course[];
+  books: Book[];
+  playlists: Playlist[];
   restrictToAcademic?: boolean;
   supabase: SupabaseClient;
   onChange: () => void;
 }) {
+  // نسخ مادة (super_admin بس، بشرط الدالة نفسها في duplicate_course_setup.sql)
+  const [duplicatingCourse, setDuplicatingCourse] = useState<Course | null>(null);
   function yearsForUniversity(universityId: number | string): Year[] {
     return years.filter((y) => String(y.university_id) === String(universityId));
   }
@@ -1916,6 +1924,14 @@ function CoursesTab({
           showLearningPath={!restrictToAcademic}
           disabled={addSaving || editSaving}
           onReorder={handleReorder}
+          onDuplicate={
+            restrictToAcademic
+              ? undefined
+              : (courseId) => {
+                  const course = courses.find((c) => c.id === courseId);
+                  if (course) setDuplicatingCourse(course);
+                }
+          }
         />
       </div>
       <div className="flex flex-1 flex-col gap-8">
@@ -2167,6 +2183,369 @@ function CoursesTab({
                 className="text-sm font-medium text-red-600 hover:underline"
               >
                 حذف المادة
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {duplicatingCourse && (
+        <DuplicateCourseModal
+          sourceCourse={duplicatingCourse}
+          universities={universities}
+          years={years}
+          terms={terms}
+          courses={courses}
+          books={books}
+          playlists={playlists}
+          supabase={supabase}
+          onClose={() => setDuplicatingCourse(null)}
+          onDuplicated={(newCourseId) => {
+            setDuplicatingCourse(null);
+            // courses هنا لسه مش متحدّثة (onChange لسه بيحمّل)، فمنقدرش نفتح
+            // النسخة الجديدة للتعديل فورًا. بنستخدم نفس آلية استعادة
+            // courseId من الرابط اللي أصلًا بتتفعّل تلقائيًا أول ما courses
+            // تتحدّث وفيها المادة الجديدة دي.
+            resetEditForm();
+            pendingUrlCourseId.current = newCourseId;
+            onChange();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function DuplicateCourseModal({
+  sourceCourse,
+  universities,
+  years,
+  terms,
+  courses,
+  books,
+  playlists,
+  supabase,
+  onClose,
+  onDuplicated,
+}: {
+  sourceCourse: Course;
+  universities: University[];
+  years: Year[];
+  terms: Term[];
+  courses: Course[];
+  books: Book[];
+  playlists: Playlist[];
+  supabase: SupabaseClient;
+  onClose: () => void;
+  onDuplicated: (newCourseId: number) => void;
+}) {
+  function yearsForUniversity(universityId: number | string): Year[] {
+    return years.filter((y) => String(y.university_id) === String(universityId));
+  }
+
+  function termsForYear(yearId: number | string): Term[] {
+    return terms.filter((t) => String(t.year_id) === String(yearId));
+  }
+
+  // نبدأ بنفس مكان المادة الأصلية كافتراضي منطقي (يعني نسخة "شقيقة" لها)،
+  // مع إمكانية تغييره بالكامل — مطابق لفورم "إضافة مادة جديدة".
+  const sourceYear = years.find((y) => y.id === sourceCourse.year_id);
+  const initialUniversityId = sourceYear?.university_id ?? universities[0]?.id ?? "";
+  const initialYearId =
+    sourceCourse.year_id ?? yearsForUniversity(initialUniversityId)[0]?.id ?? "";
+  const initialTermId = sourceCourse.term_id ?? termsForYear(initialYearId)[0]?.id ?? "";
+
+  const [name, setName] = useState(sourceCourse.name);
+  const [category, setCategory] = useState<CourseCategory>(sourceCourse.category);
+  const [universityId, setUniversityId] = useState<number | string>(initialUniversityId);
+  const [yearId, setYearId] = useState<number | string>(initialYearId);
+  const [termId, setTermId] = useState<number | string>(initialTermId);
+  const [parentCourseId, setParentCourseId] = useState<number | string>(
+    sourceCourse.parent_course_id ?? ""
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    newCourseId: number;
+    copiedPlaylists: number;
+    copiedBooks: number;
+    failedBooks: string[];
+  } | null>(null);
+
+  const isAcademic = category === "academic";
+  const availableYears = yearsForUniversity(universityId);
+  const availableTerms = termsForYear(yearId);
+  const availableParents = courses.filter(
+    (c) => c.category === "learning_path" && c.id !== sourceCourse.id
+  );
+
+  function handleUniversityChange(newUniversityId: string) {
+    const nextYears = yearsForUniversity(newUniversityId);
+    const nextYearId = nextYears[0]?.id ?? "";
+    const nextTerms = termsForYear(nextYearId);
+    setUniversityId(newUniversityId);
+    setYearId(nextYearId);
+    setTermId(nextTerms[0]?.id ?? "");
+  }
+
+  function handleYearChange(newYearId: string) {
+    const nextTerms = termsForYear(newYearId);
+    setYearId(newYearId);
+    setTermId(nextTerms[0]?.id ?? "");
+  }
+
+  const sourcePlaylists = playlists.filter((p) => p.course_id === sourceCourse.id);
+  const sourceBooks = books.filter((b) => b.course_id === sourceCourse.id);
+  const childCourses = courses.filter((c) => c.parent_course_id === sourceCourse.id);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc("duplicate_course", {
+      source_course_id: sourceCourse.id,
+      new_name: name,
+      target_category: category,
+      target_year_id: isAcademic && yearId ? Number(yearId) : null,
+      target_term_id: isAcademic && termId ? Number(termId) : null,
+      target_parent_course_id: !isAcademic && parentCourseId ? Number(parentCourseId) : null,
+    });
+
+    if (rpcError || rpcData === null) {
+      setSaving(false);
+      setError(`فشل النسخ: ${rpcError?.message ?? "خطأ غير متوقع"}`);
+      return;
+    }
+
+    const newCourseId = Number(rpcData);
+
+    // duplicate_course() نسخت صفوف book_folders نفسها بالفعل (بترتيب id
+    // تصاعديًا)، فبنجيب فولدرات المصدر والنسخة الجديدة بنفس الترتيب
+    // عشان نطابق كل فولدر قديم بالجديد المقابل له بالظبط قبل نسخ الكتب.
+    const [{ data: sourceFolders }, { data: newFolders }] = await Promise.all([
+      supabase.from("book_folders").select("id").eq("course_id", sourceCourse.id).order("id"),
+      supabase.from("book_folders").select("id").eq("course_id", newCourseId).order("id"),
+    ]);
+
+    const folderIdMap = new Map<number, number>();
+    (sourceFolders ?? []).forEach((folder: { id: number }, index: number) => {
+      const newFolder = (newFolders ?? [])[index] as { id: number } | undefined;
+      if (newFolder) folderIdMap.set(folder.id, newFolder.id);
+    });
+
+    const failedBooks: string[] = [];
+    let copiedBooks = 0;
+
+    // بالتتابع (مش Promise.all) عشان نتجنب ضغط دفعة كبيرة من طلبات نسخ
+    // الملفات على Storage مرة واحدة — نفس التحذير اللي بيظهر للأدمن قبل
+    // النسخ إن العملية ممكن تاخد كذا ثانية لو الكتب كتير.
+    for (const book of sourceBooks) {
+      const newFolderId = book.folder_id ? (folderIdMap.get(book.folder_id) ?? null) : null;
+      let newFileUrl: string | null = null;
+
+      if (book.file_url) {
+        const oldPath = getStoragePathFromPublicUrl(book.file_url);
+        if (oldPath) {
+          const newPath = `${newCourseId}/${newFolderId ?? "unfiled"}/${book.id}-${Date.now()}-${sanitizeFileName(book.title)}.pdf`;
+          const { error: copyError } = await supabase.storage.from("books").copy(oldPath, newPath);
+
+          if (copyError) {
+            failedBooks.push(book.title);
+            continue;
+          }
+
+          newFileUrl = supabase.storage.from("books").getPublicUrl(newPath).data.publicUrl;
+        }
+      }
+
+      // file_url بتاع النسخة الجديدة لازم يكون رابط الملف المنسوخ الجديد،
+      // مش نفس رابط الأصل — عشان لو الكتاب الأصلي اتحذف بعدين، النسخة دي
+      // متتأثرش خالص (مستقلة تمامًا زي ما هو مطلوب).
+      const { error: insertBookError } = await supabase.from("books").insert({
+        title: book.title,
+        author: book.author,
+        file_url: newFileUrl,
+        course_id: newCourseId,
+        folder_id: newFolderId,
+      });
+
+      if (insertBookError) {
+        failedBooks.push(book.title);
+        continue;
+      }
+
+      copiedBooks++;
+    }
+
+    setSaving(false);
+    setResult({
+      newCourseId,
+      copiedPlaylists: sourcePlaylists.length,
+      copiedBooks,
+      failedBooks,
+    });
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={saving ? undefined : onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-subtle bg-card p-6 shadow-lg"
+        onClick={(event) => event.stopPropagation()}
+      >
+        {result ? (
+          <div className="flex flex-col gap-4 text-center">
+            <h2 className="text-lg font-bold text-ink">تم النسخ بنجاح</h2>
+            <p className="text-sm text-muted">
+              اتنسخ {result.copiedPlaylists} فيديو و{result.copiedBooks} كتاب لمادة &quot;{name}&quot;
+              الجديدة.
+            </p>
+            {result.failedBooks.length > 0 && (
+              <p className="text-sm text-red-600">
+                فشل نسخ {result.failedBooks.length} كتاب: {result.failedBooks.join("، ")}
+              </p>
+            )}
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => onDuplicated(result.newCourseId)}
+                className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-5 py-2 text-sm font-semibold shadow-sm"
+              >
+                افتح المادة الجديدة للتعديل
+              </button>
+              <a
+                href={`/courses/${result.newCourseId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center rounded-full border border-subtle px-5 py-2 text-sm font-semibold text-ink"
+              >
+                عرضها في الموقع
+              </a>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <h2 className="text-lg font-bold text-ink">نسخ &quot;{sourceCourse.name}&quot;</h2>
+
+            {childCourses.length > 0 && (
+              <p className="rounded-xl border border-gold/30 bg-gold/5 p-3 text-xs text-ink">
+                ⚠️ المادة دي عندها {childCourses.length} قسم فرعي — النسخ الحالي هينسخ محتوى المادة
+                نفسها بس (الفيديوهات والكتب المباشرة)، من غير الأقسام الفرعية جواها. نسخ الأقسام
+                المتداخلة (Recursive) هيتضاف في مرحلة تانية.
+              </p>
+            )}
+
+            <p className="rounded-xl border border-subtle bg-panel p-3 text-xs text-muted">
+              هيتم نسخ {sourcePlaylists.length} فيديو و{sourceBooks.length} كتاب. النسخ ده بينسخ
+              الملفات الفعلية في التخزين (مش مجرد لينك)، يعني هياخد مساحة تخزين إضافية بمعنى الكلمة
+              مع كل نسخة، وممكن ياخد كذا ثانية لو الكتب كتير.
+            </p>
+
+            <input
+              required
+              placeholder="اسم المادة الجديدة"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className={inputClasses}
+            />
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink">نوع المحتوى</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value as CourseCategory)}
+                className={inputClasses}
+              >
+                <option value="academic">مادة أكاديمية</option>
+                <option value="learning_path">مسار تعلم برمجة</option>
+              </select>
+            </div>
+
+            {isAcademic ? (
+              <>
+                <select
+                  required
+                  value={universityId}
+                  onChange={(e) => handleUniversityChange(e.target.value)}
+                  className={inputClasses}
+                >
+                  {universities.map((university) => (
+                    <option key={university.id} value={university.id}>
+                      {university.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  required
+                  value={yearId}
+                  onChange={(e) => handleYearChange(e.target.value)}
+                  className={inputClasses}
+                >
+                  {availableYears.length === 0 && (
+                    <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                  )}
+                  {availableYears.map((year) => (
+                    <option key={year.id} value={year.id}>
+                      {year.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  required
+                  value={termId}
+                  onChange={(e) => setTermId(e.target.value)}
+                  className={inputClasses}
+                >
+                  {availableTerms.length === 0 && (
+                    <option value="">لا توجد ترمين لهذه السنة</option>
+                  )}
+                  {availableTerms.map((term) => (
+                    <option key={term.id} value={term.id}>
+                      {term.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-ink">
+                  قسم أب (اختياري)
+                </label>
+                <select
+                  value={parentCourseId}
+                  onChange={(e) => setParentCourseId(e.target.value)}
+                  className={inputClasses}
+                >
+                  <option value="">بدون (مسار رئيسي)</option>
+                  {availableParents.map((parentCourse) => (
+                    <option key={parentCourse.id} value={parentCourse.id}>
+                      {parentCourse.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-5 py-2 text-sm font-semibold shadow-sm disabled:opacity-60"
+              >
+                {saving ? "جارٍ النسخ... ده ممكن ياخد كذا ثانية" : "نسخ"}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={saving}
+                className="text-sm font-medium text-muted hover:text-ink disabled:opacity-60"
+              >
+                إلغاء
               </button>
             </div>
           </form>
