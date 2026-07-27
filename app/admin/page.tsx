@@ -1654,7 +1654,8 @@ function CoursesTab({
 
   const initialUniversityId = universities[0]?.id ?? "";
   const initialYearId = yearsForUniversity(initialUniversityId)[0]?.id ?? "";
-  const empty: {
+
+  type CourseFormState = {
     name: string;
     description: string;
     category: CourseCategory;
@@ -1662,18 +1663,31 @@ function CoursesTab({
     year_id: number | string;
     term_id: number | string;
     parent_course_id: number | string;
-  } = {
-    name: "",
-    description: "",
-    category: "academic",
-    university_id: initialUniversityId,
-    year_id: initialYearId,
-    term_id: termsForYear(initialYearId)[0]?.id ?? "",
-    parent_course_id: "",
   };
+
+  function emptyForm(): CourseFormState {
+    return {
+      name: "",
+      description: "",
+      category: "academic",
+      university_id: initialUniversityId,
+      year_id: initialYearId,
+      term_id: termsForYear(initialYearId)[0]?.id ?? "",
+      parent_course_id: "",
+    };
+  }
+
+  // فورم "إضافة مادة جديدة" — دايمًا ظاهر وله حالته الخاصة، منفصل تمامًا
+  // عن فورم التعديل عشان اختيار عنصر من الشجرة للتعديل ميشيلش فورم
+  // الإضافة من الشاشة (كان ده سبب اختفائه بعد ما اتحطت الشجرة).
+  const [addForm, setAddForm] = useState<CourseFormState>(emptyForm);
+  const [addSaving, setAddSaving] = useState(false);
+
+  // فورم "تعديل مادة" — بيظهر لما تختار عنصر من الشجرة بس.
   const [editingId, setEditingIdState] = useState<number | null>(null);
-  const [form, setForm] = useState(empty);
-  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState<CourseFormState>(emptyForm);
+  const [editSaving, setEditSaving] = useState(false);
+
   // الـ id المستعاد من الرابط (لو موجود) — بيتستهلك مرة واحدة أول ما المادة
   // المطابقة تبقى متاحة في courses (زي لما يحصل reload حقيقي للصفحة أو
   // refresh يدوي وإنت واقف على مادة بتعدّلها).
@@ -1689,38 +1703,10 @@ function CoursesTab({
     setUrlParam("courseId", id ? String(id) : null);
   }
 
-  const availableYears = yearsForUniversity(form.university_id);
-  const availableTerms = termsForYear(form.year_id);
-  // أدمن الفرقة (restrictToAcademic) ميقدرش يدير مسارات تعلم البرمجة أصلًا
-  // (مش مرتبطة بجامعة/فرقة، ومحجوزة لـ super_admin بس — نفس القيد اللي في
-  // سياسات RLS بتاعة courses في roles_v2_policies_update.sql)، فبنقفل
-  // الفورم على "أكاديمية" دايمًا في الحالة دي.
-  const isAcademic = restrictToAcademic || form.category === "academic";
-  const availableParents = courses.filter(
-    (c) => c.category === "learning_path" && c.id !== editingId
-  );
-
-  function handleUniversityChange(newUniversityId: string) {
-    const nextYears = yearsForUniversity(newUniversityId);
-    const nextYearId = nextYears[0]?.id ?? "";
-    const nextTerms = termsForYear(nextYearId);
-    setForm({
-      ...form,
-      university_id: newUniversityId,
-      year_id: nextYearId,
-      term_id: nextTerms[0]?.id ?? "",
-    });
-  }
-
-  function handleYearChange(newYearId: string) {
-    const nextTerms = termsForYear(newYearId);
-    setForm({ ...form, year_id: newYearId, term_id: nextTerms[0]?.id ?? "" });
-  }
-
   function startEdit(course: Course) {
     setEditingId(course.id);
     const courseYear = years.find((y) => y.id === course.year_id);
-    setForm({
+    setEditForm({
       name: course.name,
       description: course.description ?? "",
       category: course.category,
@@ -1731,9 +1717,9 @@ function CoursesTab({
     });
   }
 
-  function resetForm() {
+  function resetEditForm() {
     setEditingId(null);
-    setForm(empty);
+    setEditForm(emptyForm());
   }
 
   // بعد أي reload (سواء إضافة/تعديل عادي أو F5 حقيقي)، لو فيه courseId
@@ -1750,18 +1736,65 @@ function CoursesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courses]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
+  // اختيار أي عنصر من الشجرة بيفتحه للتعديل دايمًا. ولو العنصر ده مادة في
+  // مسار تعلم برمجة، بنقترحه كمان تلقائيًا كـ"قسم أب" في فورم الإضافة
+  // (وبنحول نوع المحتوى فيه لـ"مسار تعلم برمجة" عشان الحقل يبان)، مع
+  // إمكانية تغييره من الدروب داون في الفورم نفسه.
+  function handleTreeSelect(courseId: number) {
+    const course = courses.find((c) => c.id === courseId);
+    if (!course) return;
+    startEdit(course);
+    if (course.category === "learning_path") {
+      setAddForm((prev) => ({ ...prev, category: "learning_path", parent_course_id: courseId }));
+    }
+  }
 
-    const payload: {
-      name: string;
-      description: string | null;
-      category: CourseCategory;
-      year_id: number | null;
-      term_id: number | null;
-      parent_course_id: number | null;
-    } = isAcademic
+  function handleAddUniversityChange(newUniversityId: string) {
+    const nextYears = yearsForUniversity(newUniversityId);
+    const nextYearId = nextYears[0]?.id ?? "";
+    const nextTerms = termsForYear(nextYearId);
+    setAddForm((prev) => ({
+      ...prev,
+      university_id: newUniversityId,
+      year_id: nextYearId,
+      term_id: nextTerms[0]?.id ?? "",
+    }));
+  }
+
+  function handleAddYearChange(newYearId: string) {
+    const nextTerms = termsForYear(newYearId);
+    setAddForm((prev) => ({ ...prev, year_id: newYearId, term_id: nextTerms[0]?.id ?? "" }));
+  }
+
+  function handleEditUniversityChange(newUniversityId: string) {
+    const nextYears = yearsForUniversity(newUniversityId);
+    const nextYearId = nextYears[0]?.id ?? "";
+    const nextTerms = termsForYear(nextYearId);
+    setEditForm((prev) => ({
+      ...prev,
+      university_id: newUniversityId,
+      year_id: nextYearId,
+      term_id: nextTerms[0]?.id ?? "",
+    }));
+  }
+
+  function handleEditYearChange(newYearId: string) {
+    const nextTerms = termsForYear(newYearId);
+    setEditForm((prev) => ({ ...prev, year_id: newYearId, term_id: nextTerms[0]?.id ?? "" }));
+  }
+
+  function buildPayload(
+    form: CourseFormState,
+    isAcademic: boolean
+  ): {
+    name: string;
+    description: string | null;
+    category: CourseCategory;
+    year_id: number | null;
+    term_id: number | null;
+    parent_course_id: number | null;
+  } {
+    return isAcademic
       ? {
           name: form.name,
           description: form.description || null,
@@ -1778,15 +1811,41 @@ function CoursesTab({
           term_id: null,
           parent_course_id: form.parent_course_id ? Number(form.parent_course_id) : null,
         };
+  }
 
-    const { error } = editingId
-      ? await supabase.from("courses").update(payload).eq("id", editingId)
-      : await supabase.from("courses").insert(payload);
+  async function handleAddSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAddSaving(true);
 
-    setSaving(false);
+    const { error } = await supabase
+      .from("courses")
+      .insert(buildPayload(addForm, addIsAcademic));
+
+    setAddSaving(false);
 
     if (!error) {
-      resetForm();
+      // بنسيب نوع المحتوى والقسم الأب (أو الجامعة/الفرقة/الترم) زي ما هما
+      // عشان يقدر يضيف كذا مادة ورا بعض في نفس المكان (زي HTML وCSS
+      // وJavaScript جوه Front_End) من غير ما يعيد الاختيار كل مرة.
+      setAddForm((prev) => ({ ...prev, name: "", description: "" }));
+      onChange();
+    }
+  }
+
+  async function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (editingId === null) return;
+    setEditSaving(true);
+
+    const { error } = await supabase
+      .from("courses")
+      .update(buildPayload(editForm, editIsAcademic))
+      .eq("id", editingId);
+
+    setEditSaving(false);
+
+    if (!error) {
+      resetEditForm();
       onChange();
     }
   }
@@ -1794,25 +1853,25 @@ function CoursesTab({
   async function handleDelete(id: number) {
     if (!confirm("هل أنت متأكد من حذف هذه المادة؟")) return;
     await supabase.from("courses").delete().eq("id", id);
-    if (id === editingId) resetForm();
+    if (id === editingId) resetEditForm();
     onChange();
   }
 
-  // الشجرة بتستخدم دايمًا لتصفح/تعديل مادة موجودة، ماعدا حالة واحدة: وإحنا
-  // بنضيف مسار تعلم برمجة جديد (مش بنعدّل حاجة)، الضغط على مادة في فرع
-  // "مسارات تعلم البرمجة" بيختارها كـ"قسم أب" للمادة الجديدة بدل ما يفتحها
-  // للتعديل.
-  function handleTreeSelect(courseId: number) {
-    if (!isAcademic && editingId === null) {
-      setForm((prev) => ({ ...prev, parent_course_id: courseId }));
-      return;
-    }
-    const course = courses.find((c) => c.id === courseId);
-    if (course) startEdit(course);
-  }
+  // أدمن الفرقة (restrictToAcademic) ميقدرش يدير مسارات تعلم البرمجة أصلًا
+  // (مش مرتبطة بجامعة/فرقة، ومحجوزة لـ super_admin بس — نفس القيد اللي في
+  // سياسات RLS بتاعة courses في roles_v2_policies_update.sql)، فبنقفل
+  // الفورمين على "أكاديمية" دايمًا في الحالة دي.
+  const addIsAcademic = restrictToAcademic || addForm.category === "academic";
+  const addAvailableYears = yearsForUniversity(addForm.university_id);
+  const addAvailableTerms = termsForYear(addForm.year_id);
+  const addAvailableParents = courses.filter((c) => c.category === "learning_path");
 
-  const treeSelectedId =
-    editingId ?? (!isAcademic && form.parent_course_id ? Number(form.parent_course_id) : null);
+  const editIsAcademic = restrictToAcademic || editForm.category === "academic";
+  const editAvailableYears = yearsForUniversity(editForm.university_id);
+  const editAvailableTerms = termsForYear(editForm.year_id);
+  const editAvailableParents = courses.filter(
+    (c) => c.category === "learning_path" && c.id !== editingId
+  );
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
@@ -1822,128 +1881,250 @@ function CoursesTab({
           years={years}
           terms={terms}
           courses={courses}
-          selectedCourseId={treeSelectedId}
+          selectedCourseId={editingId}
           onSelectCourse={handleTreeSelect}
           showLearningPath={!restrictToAcademic}
         />
       </div>
       <div className="flex flex-1 flex-col gap-8">
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
-      >
-        <h2 className="text-lg font-bold text-ink">
-          {editingId ? "تعديل مادة" : "إضافة مادة جديدة"}
-        </h2>
+        <form
+          onSubmit={handleAddSubmit}
+          className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
+        >
+          <h2 className="text-lg font-bold text-ink">إضافة مادة جديدة</h2>
 
-        {!restrictToAcademic && (
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink">نوع المحتوى</label>
-            <select
-              required
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value as CourseCategory })}
-              className={inputClasses}
-            >
-              <option value="academic">مادة أكاديمية</option>
-              <option value="learning_path">مسار تعلم برمجة</option>
-            </select>
-          </div>
-        )}
+          {!restrictToAcademic && (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink">نوع المحتوى</label>
+              <select
+                required
+                value={addForm.category}
+                onChange={(e) =>
+                  setAddForm({ ...addForm, category: e.target.value as CourseCategory })
+                }
+                className={inputClasses}
+              >
+                <option value="academic">مادة أكاديمية</option>
+                <option value="learning_path">مسار تعلم برمجة</option>
+              </select>
+            </div>
+          )}
 
-        <input
-          required
-          placeholder="اسم المادة"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className={inputClasses}
-        />
-        <textarea
-          placeholder="الوصف"
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          className={inputClasses}
-          rows={3}
-        />
+          <input
+            required
+            placeholder="اسم المادة"
+            value={addForm.name}
+            onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+            className={inputClasses}
+          />
+          <textarea
+            placeholder="الوصف"
+            value={addForm.description}
+            onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
+            className={inputClasses}
+            rows={3}
+          />
 
-        {isAcademic && (
-          <>
-            <select
-              required
-              value={form.university_id}
-              onChange={(e) => handleUniversityChange(e.target.value)}
-              className={inputClasses}
-            >
-              {universities.map((university) => (
-                <option key={university.id} value={university.id}>
-                  {university.name}
-                </option>
-              ))}
-            </select>
-            <select
-              required
-              value={form.year_id}
-              onChange={(e) => handleYearChange(e.target.value)}
-              className={inputClasses}
-            >
-              {availableYears.length === 0 && (
-                <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
-              )}
-              {availableYears.map((year) => (
-                <option key={year.id} value={year.id}>
-                  {year.name}
-                </option>
-              ))}
-            </select>
-            <select
-              required
-              value={form.term_id}
-              onChange={(e) => setForm({ ...form, term_id: e.target.value })}
-              className={inputClasses}
-            >
-              {availableTerms.length === 0 && <option value="">لا توجد ترمين لهذه السنة</option>}
-              {availableTerms.map((term) => (
-                <option key={term.id} value={term.id}>
-                  {term.name}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-
-        {!isAcademic && (
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink">
-              قسم أب (اختياري)
-            </label>
-            <select
-              value={form.parent_course_id}
-              onChange={(e) => setForm({ ...form, parent_course_id: e.target.value })}
-              className={inputClasses}
-            >
-              <option value="">بدون (مسار رئيسي)</option>
-              {availableParents.map((parentCourse) => (
-                <option key={parentCourse.id} value={parentCourse.id}>
-                  {parentCourse.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
-          >
-            {saving ? "جارٍ الحفظ..." : editingId ? "حفظ التعديل" : "إضافة"}
-          </button>
-          {editingId && (
+          {addIsAcademic ? (
             <>
+              <select
+                required
+                value={addForm.university_id}
+                onChange={(e) => handleAddUniversityChange(e.target.value)}
+                className={inputClasses}
+              >
+                {universities.map((university) => (
+                  <option key={university.id} value={university.id}>
+                    {university.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                required
+                value={addForm.year_id}
+                onChange={(e) => handleAddYearChange(e.target.value)}
+                className={inputClasses}
+              >
+                {addAvailableYears.length === 0 && (
+                  <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                )}
+                {addAvailableYears.map((year) => (
+                  <option key={year.id} value={year.id}>
+                    {year.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                required
+                value={addForm.term_id}
+                onChange={(e) => setAddForm({ ...addForm, term_id: e.target.value })}
+                className={inputClasses}
+              >
+                {addAvailableTerms.length === 0 && (
+                  <option value="">لا توجد ترمين لهذه السنة</option>
+                )}
+                {addAvailableTerms.map((term) => (
+                  <option key={term.id} value={term.id}>
+                    {term.name}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-ink">
+                قسم أب (اختياري)
+              </label>
+              <select
+                value={addForm.parent_course_id}
+                onChange={(e) => setAddForm({ ...addForm, parent_course_id: e.target.value })}
+                className={inputClasses}
+              >
+                <option value="">بدون (مسار رئيسي)</option>
+                {addAvailableParents.map((parentCourse) => (
+                  <option key={parentCourse.id} value={parentCourse.id}>
+                    {parentCourse.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-muted">
+                اختيار مادة من الشجرة بيقترحها هنا تلقائيًا كقسم أب — وتقدر تغيّرها من الليستة دي.
+              </p>
+            </div>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={addSaving}
+              className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+            >
+              {addSaving ? "جارٍ الإضافة..." : "إضافة"}
+            </button>
+          </div>
+        </form>
+
+        {editingId === null ? (
+          <div className="rounded-2xl border border-dashed border-subtle bg-card p-6 text-center">
+            <p className="text-sm text-muted">اختر مادة من الشجرة عشان تعدّلها من هنا.</p>
+          </div>
+        ) : (
+          <form
+            onSubmit={handleEditSubmit}
+            className="flex flex-col gap-4 rounded-2xl border border-subtle bg-card p-6 shadow-sm"
+          >
+            <h2 className="text-lg font-bold text-ink">تعديل مادة</h2>
+
+            {!restrictToAcademic && (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-ink">نوع المحتوى</label>
+                <select
+                  required
+                  value={editForm.category}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, category: e.target.value as CourseCategory })
+                  }
+                  className={inputClasses}
+                >
+                  <option value="academic">مادة أكاديمية</option>
+                  <option value="learning_path">مسار تعلم برمجة</option>
+                </select>
+              </div>
+            )}
+
+            <input
+              required
+              placeholder="اسم المادة"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              className={inputClasses}
+            />
+            <textarea
+              placeholder="الوصف"
+              value={editForm.description}
+              onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              className={inputClasses}
+              rows={3}
+            />
+
+            {editIsAcademic ? (
+              <>
+                <select
+                  required
+                  value={editForm.university_id}
+                  onChange={(e) => handleEditUniversityChange(e.target.value)}
+                  className={inputClasses}
+                >
+                  {universities.map((university) => (
+                    <option key={university.id} value={university.id}>
+                      {university.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  required
+                  value={editForm.year_id}
+                  onChange={(e) => handleEditYearChange(e.target.value)}
+                  className={inputClasses}
+                >
+                  {editAvailableYears.length === 0 && (
+                    <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                  )}
+                  {editAvailableYears.map((year) => (
+                    <option key={year.id} value={year.id}>
+                      {year.name}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  required
+                  value={editForm.term_id}
+                  onChange={(e) => setEditForm({ ...editForm, term_id: e.target.value })}
+                  className={inputClasses}
+                >
+                  {editAvailableTerms.length === 0 && (
+                    <option value="">لا توجد ترمين لهذه السنة</option>
+                  )}
+                  {editAvailableTerms.map((term) => (
+                    <option key={term.id} value={term.id}>
+                      {term.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            ) : (
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-ink">
+                  قسم أب (اختياري)
+                </label>
+                <select
+                  value={editForm.parent_course_id}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, parent_course_id: e.target.value })
+                  }
+                  className={inputClasses}
+                >
+                  <option value="">بدون (مسار رئيسي)</option>
+                  {editAvailableParents.map((parentCourse) => (
+                    <option key={parentCourse.id} value={parentCourse.id}>
+                      {parentCourse.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                disabled={editSaving}
+                className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-6 py-2.5 text-sm font-semibold shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+              >
+                {editSaving ? "جارٍ الحفظ..." : "حفظ التعديل"}
+              </button>
               <button
                 type="button"
-                onClick={resetForm}
+                onClick={resetEditForm}
                 className="text-sm font-medium text-muted hover:text-ink"
               >
                 إلغاء
@@ -1955,10 +2136,9 @@ function CoursesTab({
               >
                 حذف المادة
               </button>
-            </>
-          )}
-        </div>
-      </form>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
