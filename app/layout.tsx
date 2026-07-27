@@ -43,7 +43,9 @@ export async function generateMetadata(): Promise<Metadata> {
       description: settings.hero_subtitle,
       images: settings.logo_url ? [{ url: settings.logo_url }] : [],
     },
-    icons: settings.logo_url ? { icon: settings.logo_url } : undefined,
+    // الأيقونة نفسها متولّدة من app/icon.tsx (نفس دومين الموقع) بدل ما
+    // تتحط هنا كرابط خارجي — بعض المتصفحات بتتجاهل رابط favicon خارجي
+    // في الـ <head> وبتفضل تجيبه من نفس الأصل بس.
   };
 }
 
