@@ -22,6 +22,11 @@ type ContentTreeProps = {
   selectedCourseId: number | null;
   onSelectCourse: (courseId: number) => void;
   showLearningPath?: boolean;
+  // بيتقفل مؤقتًا (اختيار جديد ممنوع) وقت أي عملية حفظ شغالة فعلًا في
+  // التاب اللي بيستخدم الشجرة، عشان مايبقاش فيه احتمال إن الأدمن يغيّر
+  // اختياره وسط عملية حفظ لسه ماخلصتش ويحصل لبس عن أنهي مادة اتحفظ ليها
+  // الحاجة اللي بيضيفها.
+  disabled?: boolean;
 };
 
 const CHEVRON_PATH = "M8.25 4.5l7.5 7.5-7.5 7.5";
@@ -34,6 +39,7 @@ export default function ContentTree({
   selectedCourseId,
   onSelectCourse,
   showLearningPath = true,
+  disabled = false,
 }: ContentTreeProps) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(
@@ -47,6 +53,14 @@ export default function ContentTree({
       else next.add(key);
       return next;
     });
+  }
+
+  // بنلف onSelectCourse بيها بدل ما نبعتها زي ما هي لكل حاجة قابلة
+  // للاختيار في الشجرة، عشان أي مكان بيستخدمها (مباشر أو جوه LearningPathNode
+  // المتداخلة) يحترم الإغلاق المؤقت تلقائيًا من غير ما نكرر الشرط كل مكان.
+  function selectCourse(courseId: number) {
+    if (disabled) return;
+    onSelectCourse(courseId);
   }
 
   function academicPath(course: TreeCourse): string {
@@ -99,7 +113,11 @@ export default function ContentTree({
         className="w-full rounded-xl border border-subtle bg-panel px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-gold"
       />
 
-      <div className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto">
+      <div
+        className={`flex max-h-[60vh] flex-col gap-1 overflow-y-auto ${
+          disabled ? "pointer-events-none opacity-60" : ""
+        }`}
+      >
         {query.trim() ? (
           matches.length === 0 ? (
             <p className="p-2 text-sm text-muted">لا توجد نتائج</p>
@@ -108,7 +126,7 @@ export default function ContentTree({
               <button
                 key={course.id}
                 type="button"
-                onClick={() => onSelectCourse(course.id)}
+                onClick={() => selectCourse(course.id)}
                 className={`flex flex-col rounded-lg px-3 py-2 text-right transition-colors ${
                   selectedCourseId === course.id ? "bg-gold/10 text-gold" : "text-ink hover:bg-panel"
                 }`}
@@ -160,7 +178,7 @@ export default function ContentTree({
                                     label={course.name}
                                     depth={4}
                                     selected={selectedCourseId === course.id}
-                                    onClick={() => onSelectCourse(course.id)}
+                                    onClick={() => selectCourse(course.id)}
                                   />
                                 ))}
                             </TreeBranch>
@@ -187,7 +205,7 @@ export default function ContentTree({
                     expanded={expanded}
                     onToggle={toggle}
                     selectedCourseId={selectedCourseId}
-                    onSelectCourse={onSelectCourse}
+                    onSelectCourse={selectCourse}
                   />
                 ))}
               </TreeBranch>

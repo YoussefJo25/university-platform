@@ -203,7 +203,14 @@ export default function AdminPage() {
   function setActiveTab(tab: TabKey) {
     setActiveTabState(tab);
     setUrlParam("tab", tab);
+    // كل تاب بيستخدم مفتاح خاص بيه (courseId لتاب المواد، booksCourseId
+    // لتاب الكتب، playlistsCourseId لتاب الفيديوهات) عشان مايبقاش فيه أي
+    // احتمال إن تاب يقرأ اختيار مادة كان لتاب تاني بالغلط. بنصفّرهم
+    // الثلاثة هنا كمان كل ما نغيّر تاب، عشان كل تاب يبدأ بلا اختيار
+    // موروث من قبل كده.
     setUrlParam("courseId", null);
+    setUrlParam("booksCourseId", null);
+    setUrlParam("playlistsCourseId", null);
   }
 
   async function fetchCourses() {
@@ -1884,6 +1891,7 @@ function CoursesTab({
           selectedCourseId={editingId}
           onSelectCourse={handleTreeSelect}
           showLearningPath={!restrictToAcademic}
+          disabled={addSaving || editSaving}
         />
       </div>
       <div className="flex flex-1 flex-col gap-8">
@@ -2166,10 +2174,13 @@ function BooksTab({
   onChange: () => void;
 }) {
   const [selectedCourseId, setSelectedCourseIdState] = useState<number | null>(() => {
-    const raw = getUrlParam("courseId");
+    const raw = getUrlParam("booksCourseId");
     return raw ? Number(raw) : null;
   });
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
+  // بيتفعّل وقت أي حفظ فولدر/كتاب شغال فعلًا (Upload)، عشان نقفل الشجرة
+  // مؤقتًا ومايبقاش فيه احتمال إن الاختيار يتغيّر ووسط عملية حفظ لسه ماخلصتش.
+  const [childSaving, setChildSaving] = useState(false);
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null;
   const selectedFolder = folders.find((f) => f.id === selectedFolderId) ?? null;
   const courseFolders = folders.filter((f) => f.course_id === selectedCourseId);
@@ -2177,7 +2188,7 @@ function BooksTab({
 
   function handleSelectCourse(courseId: number) {
     setSelectedCourseIdState(courseId);
-    setUrlParam("courseId", String(courseId));
+    setUrlParam("booksCourseId", String(courseId));
     setSelectedFolderId(null);
   }
 
@@ -2206,6 +2217,7 @@ function BooksTab({
           selectedCourseId={selectedCourseId}
           onSelectCourse={handleSelectCourse}
           showLearningPath={showLearningPath}
+          disabled={childSaving}
         />
       </div>
 
@@ -2227,6 +2239,7 @@ function BooksTab({
               onChange={onChange}
               selectedFolderId={selectedFolderId}
               onSelectFolder={setSelectedFolderId}
+              onSavingChange={setChildSaving}
             />
 
             {selectedFolder && (
@@ -2244,7 +2257,12 @@ function BooksTab({
                   </button>
                 </div>
 
-                <BookUploadForm folder={selectedFolder} supabase={supabase} onChange={onChange} />
+                <BookUploadForm
+                  folder={selectedFolder}
+                  supabase={supabase}
+                  onChange={onChange}
+                  onSavingChange={setChildSaving}
+                />
 
                 <BookList
                   books={books.filter((b) => b.folder_id === selectedFolder.id)}
@@ -2277,6 +2295,7 @@ function FolderManager({
   onChange,
   selectedFolderId,
   onSelectFolder,
+  onSavingChange,
 }: {
   courseId: number;
   folders: BookFolder[];
@@ -2284,6 +2303,7 @@ function FolderManager({
   onChange: () => void;
   selectedFolderId: number | null;
   onSelectFolder: (id: number | null) => void;
+  onSavingChange: (saving: boolean) => void;
 }) {
   const empty = { name: "" };
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -2303,7 +2323,12 @@ function FolderManager({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
+    onSavingChange(true);
 
+    // بناخد courseId من الـ prop مباشرة (جاي من selectedCourse.id بتاع
+    // BooksTab وقت الرندر ده)، مش من متغيّر مخزّن قبل كده — والشجرة بقت
+    // مقفولة أثناء الحفظ (disabled={childSaving} في BooksTab) فمفيش
+    // احتمال إن الاختيار يتغيّر تحتنا لحد ما الطلب يخلص.
     const payload = { name: form.name, course_id: courseId };
 
     const { error } = editingId
@@ -2311,6 +2336,7 @@ function FolderManager({
       : await supabase.from("book_folders").insert(payload);
 
     setSaving(false);
+    onSavingChange(false);
 
     if (!error) {
       resetForm();
@@ -2422,10 +2448,12 @@ function BookUploadForm({
   folder,
   supabase,
   onChange,
+  onSavingChange,
 }: {
   folder: BookFolder;
   supabase: SupabaseClient;
   onChange: () => void;
+  onSavingChange: (saving: boolean) => void;
 }) {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
@@ -2470,18 +2498,23 @@ function BookUploadForm({
     }
 
     setSaving(true);
+    onSavingChange(true);
 
     const path = `${folder.course_id}/${folder.id}/${Date.now()}-${sanitizeFileName(file.name)}`;
     const { error: uploadError } = await supabase.storage.from("books").upload(path, file);
 
     if (uploadError) {
       setSaving(false);
+      onSavingChange(false);
       setFormError(`فشل رفع الملف: ${uploadError.message}`);
       return;
     }
 
     const fileUrl = supabase.storage.from("books").getPublicUrl(path).data.publicUrl;
 
+    // folder.course_id جاي من الـ prop (الفولدر المختار حاليًا)، مش من أي
+    // متغيّر تاني — وحتى لو تغيّر اختيار المادة في الشجرة، الفولدر ده
+    // (وبالتالي المادة اللي هيتربط بيها الكتاب) ثابت طول عملية الرفع.
     const { error } = await supabase.from("books").insert({
       title,
       author: author || null,
@@ -2491,6 +2524,7 @@ function BookUploadForm({
     });
 
     setSaving(false);
+    onSavingChange(false);
 
     if (error) {
       setFormError(`فشل حفظ الملف: ${error.message}`);
@@ -2624,7 +2658,7 @@ function PlaylistsTab({
   onChange: () => void;
 }) {
   const [selectedCourseId, setSelectedCourseIdState] = useState<number | null>(() => {
-    const raw = getUrlParam("courseId");
+    const raw = getUrlParam("playlistsCourseId");
     return raw ? Number(raw) : null;
   });
   const selectedCourse = courses.find((c) => c.id === selectedCourseId) ?? null;
@@ -2662,7 +2696,7 @@ function PlaylistsTab({
 
   function handleSelectCourse(courseId: number) {
     setSelectedCourseIdState(courseId);
-    setUrlParam("courseId", String(courseId));
+    setUrlParam("playlistsCourseId", String(courseId));
     resetForm();
   }
 
@@ -2671,6 +2705,9 @@ function PlaylistsTab({
     if (!selectedCourseId) return;
     setSaving(true);
 
+    // selectedCourseId مأخوذ من الـ state الحالي وقت الضغط على "إضافة"،
+    // والشجرة بقت مقفولة أثناء الحفظ (disabled={saving} تحت) فمفيش
+    // احتمال إنه يتغيّر تحتنا لحد ما الطلب يخلص.
     const payload = {
       title: form.title,
       youtube_url: form.youtube_url,
@@ -2713,6 +2750,7 @@ function PlaylistsTab({
           selectedCourseId={selectedCourseId}
           onSelectCourse={handleSelectCourse}
           showLearningPath={showLearningPath}
+          disabled={saving}
         />
       </div>
 
