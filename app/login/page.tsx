@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -10,7 +9,6 @@ type UniversityOption = { id: number; name: string };
 type YearOption = { id: number; name: string; university_id: number | null };
 
 export default function LoginPage() {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -119,8 +117,12 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    // تنقل كامل (Hard Navigation) بدل router.push/refresh: لازم نضمن إن
+    // الطلب الجاي للسيرفر (وproxy.ts اللي بيتحقق من الجلسة) شايف الكوكيز
+    // الجديدة اللي supabase-js لسه بيكتبها. التنقل الداخلي بتاع Next ممكن
+    // ينطلق قبل ما الكتابة تخلص، فيرجّع المستخدم لـ /login رغم إن تسجيل
+    // الدخول نجح فعلًا (race condition كانت بتحصل مع بعض الحسابات).
+    window.location.href = "/";
   }
 
   return (

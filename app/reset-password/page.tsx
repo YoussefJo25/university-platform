@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +35,7 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    router.push("/login?passwordReset=1");
+    window.location.href = "/login?passwordReset=1";
   }
 
   return (

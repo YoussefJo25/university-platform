@@ -2,7 +2,6 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getDisplayName } from "@/lib/displayName";
@@ -22,7 +21,6 @@ type HeaderProps = {
 };
 
 export default function Header({ universityName, logoUrl }: HeaderProps) {
-  const router = useRouter();
   const supabase = createClient();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
@@ -73,8 +71,10 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
   async function handleLogout() {
     await supabase.auth.signOut();
     setIsMenuOpen(false);
-    router.push("/");
-    router.refresh();
+    // نفس مبدأ تسجيل الدخول: تنقل كامل بدل push/refresh عشان نضمن إن
+    // السيرفر شايف إن الكوكيز اتمسحت فعلًا (مش هيفضل يعامل المستخدم
+    // كمسجّل دخول لحظة أو اتنين بعد الضغط على "تسجيل الخروج").
+    window.location.href = "/";
   }
 
   const navLinks = isAdmin
