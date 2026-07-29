@@ -10,7 +10,6 @@ import PublicStatsBar from "@/components/home/PublicStatsBar";
 import { createClient } from "@/lib/supabase/server";
 import { getSiteSettings } from "@/lib/siteSettings";
 import { getLeadershipMembers, ROLE_FALLBACK_TITLE, ROLE_ORDER } from "@/lib/leadership";
-import { getDisplayName } from "@/lib/displayName";
 import { isStaffRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -68,15 +67,13 @@ export default async function Home() {
   );
 
   let isAdmin = false;
-  let displayName = "";
   if (user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("role, full_name")
+      .select("role")
       .eq("id", user.id)
       .single();
     isAdmin = isStaffRole(profile?.role);
-    displayName = getDisplayName(profile?.full_name, user.email);
   }
 
   const cards = [
@@ -125,18 +122,10 @@ export default async function Home() {
             المنصة الإلكترونية الرسمية
           </span>
           <h1 className="mt-5 font-display text-4xl font-extrabold text-ink sm:text-6xl">
-            {user ? (
-              <>
-                أهلاً بيك يا <span className="text-gold-light italic">{displayName}</span>
-              </>
-            ) : (
-              <>
-                {settings.hero_title_line1}{" "}
-                <span className="text-gold-light">{settings.hero_title_highlight}</span>
-                <br />
-                {settings.hero_title_line2}
-              </>
-            )}
+            {settings.hero_title_line1}{" "}
+            <span className="text-gold-light">{settings.hero_title_highlight}</span>
+            <br />
+            {settings.hero_title_line2}
           </h1>
           <p className="mt-4 text-base text-muted sm:text-lg">{settings.hero_dedication_text}</p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
