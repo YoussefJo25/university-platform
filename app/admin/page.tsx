@@ -14,6 +14,15 @@ import StatCard from "@/components/admin/StatCard";
 import StatCardSkeleton from "@/components/admin/StatCardSkeleton";
 import VisitsTimelineChart from "@/components/admin/VisitsTimelineChart";
 import { BookOpen, Eye, TrendingUp, Users } from "lucide-react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -146,6 +155,7 @@ const SUPER_ADMIN_ONLY_TABS: TabKey[] = [
   "auditLog",
   "reports",
   "stats",
+  "studentTime",
 ];
 
 type TabKey =
@@ -158,7 +168,8 @@ type TabKey =
   | "leadership"
   | "auditLog"
   | "reports"
-  | "stats";
+  | "stats"
+  | "studentTime";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "universities", label: "الجامعات" },
@@ -171,6 +182,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "auditLog", label: "سجل النشاط" },
   { key: "reports", label: "البلاغات" },
   { key: "stats", label: "الإحصائيات" },
+  { key: "studentTime", label: "وقت الطلاب" },
 ];
 
 const inputClasses =
@@ -624,6 +636,9 @@ export default function AdminPage() {
                   profiles={profiles}
                   supabase={supabase}
                 />
+              )}
+              {activeTab === "studentTime" && (
+                <StudentTimeTab profiles={profiles} universities={universities} years={years} supabase={supabase} />
               )}
             </div>
           )}
@@ -1903,6 +1918,435 @@ function StatsTab({
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+type ActivityRow = {
+  user_id: string;
+  activity_date: string;
+  minutes_active: number;
+  video_minutes: number;
+};
+
+type StudentActivitySummary = { profile: ProfileRow; minutes: number; videoMinutes: number };
+
+type MonthOption = "current" | "previous";
+
+const STUDENT_TIME_PAGE_SIZE = 15;
+
+function toISODate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function getMonthBounds(option: MonthOption): { startISO: string; endISO: string; label: string } {
+  const now = new Date();
+  const monthOffset = option === "current" ? 0 : -1;
+  const targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const start = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
+  const end = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0);
+
+  return {
+    startISO: toISODate(start),
+    endISO: toISODate(end),
+    label: targetMonth.toLocaleDateString("ar-EG", { month: "long", year: "numeric" }),
+  };
+}
+
+function aggregateActivityRows(
+  rows: ActivityRow[],
+  profileById: Map<string, ProfileRow>
+): StudentActivitySummary[] {
+  const totals = new Map<string, { minutes: number; videoMinutes: number }>();
+
+  for (const row of rows) {
+    if (!profileById.has(row.user_id)) continue;
+    const current = totals.get(row.user_id) ?? { minutes: 0, videoMinutes: 0 };
+    current.minutes += row.minutes_active;
+    current.videoMinutes += row.video_minutes;
+    totals.set(row.user_id, current);
+  }
+
+  return Array.from(totals.entries()).map(([userId, sums]) => ({
+    profile: profileById.get(userId)!,
+    minutes: sums.minutes,
+    videoMinutes: sums.videoMinutes,
+  }));
+}
+
+function StudentTimeTab({
+  profiles,
+  universities,
+  years,
+  supabase,
+}: {
+  profiles: ProfileRow[];
+  universities: University[];
+  years: Year[];
+  supabase: SupabaseClient;
+}) {
+  const [todayRows, setTodayRows] = useState<ActivityRow[] | null>(null);
+  const [monthOption, setMonthOption] = useState<MonthOption>("current");
+  const [monthRows, setMonthRows] = useState<ActivityRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [drillDownUserId, setDrillDownUserId] = useState<string | null>(null);
+
+  const studentProfiles = profiles.filter((p) => p.role === "student");
+  const profileById = new Map(studentProfiles.map((p) => [p.id, p]));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadToday() {
+      const { data, error: fetchError } = await supabase
+        .from("daily_activity")
+        .select("user_id, activity_date, minutes_active, video_minutes")
+        .eq("activity_date", toISODate(new Date()));
+
+      if (cancelled) return;
+      if (fetchError) {
+        setError(fetchError.message);
+        setTodayRows([]);
+      } else {
+        setTodayRows((data ?? []) as ActivityRow[]);
+      }
+    }
+
+    loadToday();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMonth() {
+      setMonthRows(null);
+      const { startISO, endISO } = getMonthBounds(monthOption);
+      const { data, error: fetchError } = await supabase
+        .from("daily_activity")
+        .select("user_id, activity_date, minutes_active, video_minutes")
+        .gte("activity_date", startISO)
+        .lte("activity_date", endISO);
+
+      if (cancelled) return;
+      if (fetchError) {
+        setError(fetchError.message);
+        setMonthRows([]);
+      } else {
+        setMonthRows((data ?? []) as ActivityRow[]);
+      }
+    }
+
+    loadMonth();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, monthOption]);
+
+  function profileContext(profile: ProfileRow): string {
+    const year = years.find((y) => y.id === profile.year_id);
+    const university = universities.find(
+      (u) => u.id === (year?.university_id ?? profile.university_id)
+    );
+    return [university?.name, year?.name].filter(Boolean).join(" — ") || "—";
+  }
+
+  const todayAggregated = todayRows ? aggregateActivityRows(todayRows, profileById) : null;
+  const monthAggregated = monthRows ? aggregateActivityRows(monthRows, profileById) : null;
+
+  const drillDownProfile = drillDownUserId ? (profileById.get(drillDownUserId) ?? null) : null;
+  const drillDownDailyData =
+    drillDownUserId && monthRows
+      ? monthRows
+          .filter((r) => r.user_id === drillDownUserId)
+          .sort((a, b) => a.activity_date.localeCompare(b.activity_date))
+          .map((r) => ({
+            date: new Date(r.activity_date).toLocaleDateString("ar-EG", {
+              day: "numeric",
+              month: "short",
+            }),
+            minutes: r.minutes_active,
+          }))
+      : [];
+
+  return (
+    <div className="flex flex-col gap-6">
+      {error && <p className="text-sm text-red-600">تعذّر تحميل بيانات النشاط: {error}</p>}
+
+      <div>
+        <p className="mb-3 text-sm font-semibold text-ink">نشاط اليوم</p>
+        <StudentActivityTable
+          data={todayAggregated}
+          profileContext={profileContext}
+          onSelectStudent={setDrillDownUserId}
+        />
+      </div>
+
+      <div>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-ink">تجميع الشهر</p>
+          <div className="flex rounded-full border border-subtle bg-panel p-1">
+            <button
+              type="button"
+              onClick={() => setMonthOption("current")}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                monthOption === "current" ? "bg-gold text-gold-ink" : "text-muted hover:text-ink"
+              }`}
+            >
+              الشهر الحالي
+            </button>
+            <button
+              type="button"
+              onClick={() => setMonthOption("previous")}
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                monthOption === "previous" ? "bg-gold text-gold-ink" : "text-muted hover:text-ink"
+              }`}
+            >
+              الشهر اللي فات
+            </button>
+          </div>
+        </div>
+        <StudentActivityTable
+          data={monthAggregated}
+          profileContext={profileContext}
+          onSelectStudent={setDrillDownUserId}
+        />
+      </div>
+
+      {drillDownProfile && (
+        <StudentDrillDownModal
+          profile={drillDownProfile}
+          monthLabel={getMonthBounds(monthOption).label}
+          dailyData={drillDownDailyData}
+          onClose={() => setDrillDownUserId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+type StudentActivitySortColumn = "name" | "context" | "minutes" | "videoMinutes";
+type StudentActivitySortDirection = "asc" | "desc";
+
+function StudentActivityTable({
+  data,
+  profileContext,
+  onSelectStudent,
+}: {
+  data: StudentActivitySummary[] | null;
+  profileContext: (profile: ProfileRow) => string;
+  onSelectStudent: (userId: string) => void;
+}) {
+  const [sortColumn, setSortColumn] = useState<StudentActivitySortColumn>("minutes");
+  const [sortDirection, setSortDirection] = useState<StudentActivitySortDirection>("desc");
+  const [page, setPage] = useState(0);
+
+  function handleSort(column: StudentActivitySortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("desc");
+    }
+    setPage(0);
+  }
+
+  function SortableHeader({ column, label }: { column: StudentActivitySortColumn; label: string }) {
+    const isActive = sortColumn === column;
+    return (
+      <th className="px-4 py-3 font-medium">
+        <button
+          type="button"
+          onClick={() => handleSort(column)}
+          className="inline-flex items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-ink"
+        >
+          {label}
+          <span className="text-gold">{isActive ? (sortDirection === "asc" ? "▲" : "▼") : ""}</span>
+        </button>
+      </th>
+    );
+  }
+
+  if (data === null) {
+    return (
+      <div className="rounded-2xl border border-subtle bg-card p-6 text-center text-sm text-muted shadow-sm">
+        جارٍ تحميل البيانات...
+      </div>
+    );
+  }
+
+  const sorted = [...data].sort((a, b) => {
+    let compare = 0;
+    switch (sortColumn) {
+      case "name":
+        compare = (a.profile.full_name || a.profile.email).localeCompare(
+          b.profile.full_name || b.profile.email,
+          "ar"
+        );
+        break;
+      case "context":
+        compare = profileContext(a.profile).localeCompare(profileContext(b.profile), "ar");
+        break;
+      case "videoMinutes":
+        compare = a.videoMinutes - b.videoMinutes;
+        break;
+      case "minutes":
+      default:
+        compare = a.minutes - b.minutes;
+        break;
+    }
+    return sortDirection === "asc" ? compare : -compare;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / STUDENT_TIME_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageRows = sorted.slice(
+    currentPage * STUDENT_TIME_PAGE_SIZE,
+    currentPage * STUDENT_TIME_PAGE_SIZE + STUDENT_TIME_PAGE_SIZE
+  );
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
+      <table className="w-full text-right text-sm">
+        <thead>
+          <tr className="border-b border-subtle text-xs text-muted">
+            <SortableHeader column="name" label="اسم الطالب" />
+            <SortableHeader column="context" label="الجامعة / الفرقة" />
+            <SortableHeader column="minutes" label="الدقائق النشطة" />
+            <SortableHeader column="videoMinutes" label="منها دقائق فيديو" />
+          </tr>
+        </thead>
+        <tbody>
+          {pageRows.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-6 text-center text-muted">
+                لا توجد بيانات كفاية بعد
+              </td>
+            </tr>
+          ) : (
+            pageRows.map(({ profile, minutes, videoMinutes }) => (
+              <tr key={profile.id} className="border-b border-subtle last:border-0">
+                <td className="px-4 py-3 font-medium text-ink">
+                  <button
+                    type="button"
+                    onClick={() => onSelectStudent(profile.id)}
+                    className="hover:text-gold hover:underline"
+                  >
+                    {profile.full_name || profile.email}
+                  </button>
+                </td>
+                <td className="px-4 py-3 text-muted">{profileContext(profile)}</td>
+                <td className="px-4 py-3 font-semibold text-gold">{minutes}</td>
+                <td className="px-4 py-3 text-muted">{videoMinutes}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
+      {sorted.length > STUDENT_TIME_PAGE_SIZE && (
+        <div className="flex items-center justify-between border-t border-subtle px-4 py-3 text-sm">
+          <button
+            type="button"
+            disabled={currentPage === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            className="font-medium text-gold hover:underline disabled:opacity-40 disabled:no-underline"
+          >
+            السابق
+          </button>
+          <span className="text-muted">
+            صفحة {currentPage + 1} من {totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages - 1}
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            className="font-medium text-gold hover:underline disabled:opacity-40 disabled:no-underline"
+          >
+            التالي
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudentDrillDownModal({
+  profile,
+  monthLabel,
+  dailyData,
+  onClose,
+}: {
+  profile: ProfileRow;
+  monthLabel: string;
+  dailyData: { date: string; minutes: number }[];
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[80vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-subtle bg-card p-6 shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-lg font-bold text-ink">{profile.full_name || profile.email}</p>
+            <p className="text-sm text-muted">تفصيل النشاط اليومي — {monthLabel}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm font-medium text-muted hover:text-ink"
+          >
+            إغلاق ✕
+          </button>
+        </div>
+
+        {dailyData.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted">لا توجد بيانات كفاية بعد</p>
+        ) : (
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailyData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--subtle)" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  stroke="var(--muted)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={16}
+                />
+                <YAxis
+                  stroke="var(--muted)"
+                  fontSize={12}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  width={32}
+                />
+                <Tooltip
+                  formatter={(value) => [`${value} دقيقة`, "النشاط"]}
+                  contentStyle={{
+                    backgroundColor: "var(--panel)",
+                    border: "1px solid rgba(212,175,55,0.3)",
+                    borderRadius: 8,
+                    color: "var(--ink)",
+                    fontSize: 12,
+                  }}
+                  labelStyle={{ color: "var(--ink)", fontWeight: 600 }}
+                />
+                <Bar dataKey="minutes" name="الدقائق النشطة" fill="#D4AF37" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         )}
       </div>

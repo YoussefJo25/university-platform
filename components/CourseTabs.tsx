@@ -2,6 +2,59 @@
 
 import { useEffect, useRef, useState } from "react";
 import ReportIssueButton from "@/components/ReportIssueButton";
+import { useVideoActivity } from "@/contexts/VideoActivityContext";
+
+declare global {
+  interface Window {
+    YT?: {
+      Player: new (
+        elementOrId: HTMLElement | string,
+        options: { events?: { onStateChange?: (event: { data: number }) => void } }
+      ) => { destroy: () => void };
+      PlayerState: { PLAYING: number; PAUSED: number; ENDED: number };
+    };
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+let youtubeApiPromise: Promise<void> | null = null;
+
+// بتحمّل سكريبت YouTube IFrame API مرة واحدة بس (مهما اتنادت من كذا
+// فيديو/component)، عشان نقدر نعرف حالة التشغيل (playing/paused) الحقيقية
+// من الفيديو المدمج، ده ضروري لنظام الـ heartbeat اللي بيحسب وقت المشاهدة
+// حتى لو الطالب سايب الفيديو شغال من غير ما يحرك الماوس.
+function loadYoutubeIframeApi(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (window.YT && window.YT.Player) return Promise.resolve();
+  if (youtubeApiPromise) return youtubeApiPromise;
+
+  youtubeApiPromise = new Promise((resolve) => {
+    const previousCallback = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      previousCallback?.();
+      resolve();
+    };
+
+    const script = document.createElement("script");
+    script.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(script);
+  });
+
+  return youtubeApiPromise;
+}
+
+function withJsApiParams(embedUrl: string): string {
+  try {
+    const url = new URL(embedUrl);
+    url.searchParams.set("enablejsapi", "1");
+    if (typeof window !== "undefined") {
+      url.searchParams.set("origin", window.location.origin);
+    }
+    return url.toString();
+  } catch {
+    return embedUrl;
+  }
+}
 
 type BookRow = {
   id: number;
@@ -167,6 +220,34 @@ function VideoPlayer({
   const selectedVideo =
     selectedGroup.videos.find((v) => v.id === selectedVideoId) ?? selectedGroup.videos[0];
 
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { setIsVideoPlaying } = useVideoActivity();
+
+  useEffect(() => {
+    if (!selectedVideo.embedUrl) return;
+
+    let player: { destroy: () => void } | null = null;
+    let cancelled = false;
+
+    loadYoutubeIframeApi().then(() => {
+      if (cancelled || !iframeRef.current || !window.YT) return;
+      player = new window.YT.Player(iframeRef.current, {
+        events: {
+          onStateChange: (event) => {
+            setIsVideoPlaying(event.data === window.YT!.PlayerState.PLAYING);
+          },
+        },
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      player?.destroy();
+      setIsVideoPlaying(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVideo.id, selectedVideo.embedUrl]);
+
   const sourceGroups = buildSourceGroups(playlistGroups);
 
   function handleSelectGroup(group: PlaylistGroup) {
@@ -211,7 +292,8 @@ function VideoPlayer({
             <div className="aspect-video w-full overflow-hidden rounded-xl border border-subtle bg-card shadow-sm">
               <iframe
                 key={selectedVideo.id}
-                src={selectedVideo.embedUrl}
+                ref={iframeRef}
+                src={withJsApiParams(selectedVideo.embedUrl)}
                 title={selectedVideo.title}
                 className="h-full w-full"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
