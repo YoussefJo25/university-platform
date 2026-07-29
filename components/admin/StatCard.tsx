@@ -6,14 +6,12 @@ export default function StatCard({
   label,
   value,
   changePercent,
-  formatter,
 }: {
   icon: LucideIcon;
   label: string;
   value: number;
   /** نسبة التغيّر عن الفترة السابقة؛ سيبها undefined لو المؤشر مالوش فترة سابقة يتقارن بيها */
   changePercent?: number | null;
-  formatter?: (n: number) => string;
 }) {
   const hasChange =
     changePercent !== undefined && changePercent !== null && Number.isFinite(changePercent);
@@ -42,7 +40,7 @@ export default function StatCard({
       </div>
       <p className="mt-4 text-sm text-muted">{label}</p>
       <p className="mt-1 text-3xl font-extrabold text-ink">
-        <AnimatedNumber value={value} formatter={formatter} />
+        <AnimatedNumber value={value} />
       </p>
     </div>
   );

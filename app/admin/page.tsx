@@ -1801,19 +1801,13 @@ function StatsTab({
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          icon={Eye}
-          label="إجمالي عدد الزيارات"
-          value={totalViews}
-          formatter={(n) => n.toLocaleString("ar-EG")}
-        />
+        <StatCard icon={Eye} label="إجمالي عدد الزيارات" value={totalViews} />
         {recentAvgVisits ? (
           <StatCard
             icon={TrendingUp}
             label="متوسط الزيارات اليومي (آخر 7 أيام)"
             value={Math.round(recentAvgVisits.current)}
             changePercent={recentAvgVisits.changePercent}
-            formatter={(n) => n.toLocaleString("ar-EG")}
           />
         ) : (
           <StatCardSkeleton />
@@ -1823,14 +1817,12 @@ function StatsTab({
           label="الطلاب المسجلين"
           value={students.length}
           changePercent={percentChange(newStudentsThisMonth, newStudentsLastMonth)}
-          formatter={(n) => n.toLocaleString("ar-EG")}
         />
         <StatCard
           icon={BookOpen}
           label="المواد الجديدة هذا الشهر"
           value={newCoursesThisMonth}
           changePercent={percentChange(newCoursesThisMonth, newCoursesLastMonth)}
-          formatter={(n) => n.toLocaleString("ar-EG")}
         />
       </div>
 
