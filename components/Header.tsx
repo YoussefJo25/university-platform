@@ -26,6 +26,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
   const [email, setEmail] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [hasNoUniversity, setHasNoUniversity] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -38,14 +39,16 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
       if (user) {
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role, full_name")
+          .select("role, full_name, university_id")
           .eq("id", user.id)
           .single();
         setIsAdmin(isStaffRole(profile?.role));
         setDisplayName(getDisplayName(profile?.full_name, user.email));
+        setHasNoUniversity(profile?.role === "student" && profile?.university_id == null);
       } else {
         setIsAdmin(false);
         setDisplayName(null);
+        setHasNoUniversity(false);
       }
     }
 
@@ -81,6 +84,31 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
     ? [...baseNavLinks, { href: "/admin", label: "لوحة التحكم" }]
     : baseNavLinks;
 
+  function renderNavLink(
+    link: { href: string; label: string },
+    className: string,
+    onClick?: () => void
+  ) {
+    if (link.href === "/universities" && hasNoUniversity) {
+      return (
+        <span
+          key={link.href}
+          title="هذا القسم خاص بجامعات محددة"
+          aria-disabled="true"
+          className={`${className} cursor-not-allowed opacity-50`}
+        >
+          {link.label}
+        </span>
+      );
+    }
+
+    return (
+      <Link key={link.href} href={link.href} onClick={onClick} className={className}>
+        {link.label}
+      </Link>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-50 border-b border-subtle bg-panel shadow-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
@@ -99,15 +127,9 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
         </Link>
 
         <nav className="hidden items-center gap-6 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium text-muted transition-colors hover:text-ink"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) =>
+            renderNavLink(link, "text-sm font-medium text-muted transition-colors hover:text-ink")
+          )}
 
           <ThemeToggle />
 
@@ -183,16 +205,13 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
 
       {isMenuOpen && (
         <nav className="flex flex-col gap-1 border-t border-subtle bg-panel px-4 py-3 md:hidden">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setIsMenuOpen(false)}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-ink"
-            >
-              {link.label}
-            </Link>
-          ))}
+          {navLinks.map((link) =>
+            renderNavLink(
+              link,
+              "rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-ink",
+              () => setIsMenuOpen(false)
+            )
+          )}
 
           {email ? (
             <>

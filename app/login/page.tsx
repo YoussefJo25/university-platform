@@ -8,6 +8,8 @@ type Mode = "login" | "signup";
 type UniversityOption = { id: number; name: string };
 type YearOption = { id: number; name: string; university_id: number | null };
 
+const OTHER_UNIVERSITY_VALUE = "other";
+
 export default function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -19,6 +21,7 @@ export default function LoginPage() {
   const [years, setYears] = useState<YearOption[]>([]);
   const [universityId, setUniversityId] = useState("");
   const [yearId, setYearId] = useState("");
+  const [otherUniversityName, setOtherUniversityName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
@@ -79,7 +82,7 @@ export default function LoginPage() {
         return;
       }
 
-      if (!universityId || !yearId) {
+      if (!universityId || (universityId !== OTHER_UNIVERSITY_VALUE && !yearId)) {
         setError("من فضلك اختر الجامعة والفرقة الدراسية.");
         return;
       }
@@ -94,6 +97,8 @@ export default function LoginPage() {
 
     const supabase = createClient();
 
+    const isOtherUniversity = universityId === OTHER_UNIVERSITY_VALUE;
+
     const { error: authError } = isLogin
       ? await supabase.auth.signInWithPassword({ email, password })
       : await supabase.auth.signUp({
@@ -103,9 +108,10 @@ export default function LoginPage() {
             data: {
               full_name: fullName.trim(),
               phone,
-              university_id: Number(universityId),
-              year_id: Number(yearId),
+              university_id: isOtherUniversity ? null : Number(universityId),
+              year_id: isOtherUniversity ? null : Number(yearId),
               gender,
+              other_university_name: isOtherUniversity ? otherUniversityName.trim() || null : null,
             },
           },
         });
@@ -235,8 +241,14 @@ export default function LoginPage() {
                     required
                     value={universityId}
                     onChange={(e) => {
-                      setUniversityId(e.target.value);
-                      setYearId(yearsForUniversity(e.target.value)[0]?.id.toString() ?? "");
+                      const nextValue = e.target.value;
+                      setUniversityId(nextValue);
+                      if (nextValue === OTHER_UNIVERSITY_VALUE) {
+                        setYearId("");
+                      } else {
+                        setOtherUniversityName("");
+                        setYearId(yearsForUniversity(nextValue)[0]?.id.toString() ?? "");
+                      }
                     }}
                     className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
                   >
@@ -246,30 +258,58 @@ export default function LoginPage() {
                         {u.name}
                       </option>
                     ))}
+                    <option value={OTHER_UNIVERSITY_VALUE}>أخرى (جامعتي غير موجودة)</option>
                   </select>
                 </div>
 
-                <div>
-                  <label htmlFor="year" className="mb-1.5 block text-sm font-medium text-ink">
-                    الفرقة الدراسية
-                  </label>
-                  <select
-                    id="year"
-                    required
-                    value={yearId}
-                    onChange={(e) => setYearId(e.target.value)}
-                    className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
-                  >
-                    {yearsForUniversity(universityId).length === 0 && (
-                      <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
-                    )}
-                    {yearsForUniversity(universityId).map((y) => (
-                      <option key={y.id} value={y.id}>
-                        {y.name}
-                      </option>
-                    ))}
-                  </select>
+                <div
+                  className={`grid overflow-hidden transition-all duration-300 ease-in-out ${
+                    universityId === OTHER_UNIVERSITY_VALUE
+                      ? "grid-rows-[1fr] opacity-100"
+                      : "grid-rows-[0fr] opacity-0"
+                  }`}
+                >
+                  <div className="min-h-0 overflow-hidden">
+                    <label
+                      htmlFor="otherUniversityName"
+                      className="mb-1.5 block text-sm font-medium text-ink"
+                    >
+                      اكتب اسم جامعتك (اختياري)
+                    </label>
+                    <input
+                      id="otherUniversityName"
+                      type="text"
+                      value={otherUniversityName}
+                      onChange={(e) => setOtherUniversityName(e.target.value)}
+                      className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
+                      placeholder="مثال: جامعة القاهرة"
+                    />
+                  </div>
                 </div>
+
+                {universityId !== OTHER_UNIVERSITY_VALUE && (
+                  <div>
+                    <label htmlFor="year" className="mb-1.5 block text-sm font-medium text-ink">
+                      الفرقة الدراسية
+                    </label>
+                    <select
+                      id="year"
+                      required
+                      value={yearId}
+                      onChange={(e) => setYearId(e.target.value)}
+                      className="w-full rounded-xl border border-subtle bg-card px-4 py-2.5 text-sm text-ink outline-none transition-colors focus:border-gold"
+                    >
+                      {yearsForUniversity(universityId).length === 0 && (
+                        <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+                      )}
+                      {yearsForUniversity(universityId).map((y) => (
+                        <option key={y.id} value={y.id}>
+                          {y.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </>
             )}
 

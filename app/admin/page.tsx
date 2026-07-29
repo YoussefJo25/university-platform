@@ -10,6 +10,10 @@ import {
 import { ROLE_FALLBACK_TITLE, ROLE_ORDER, type LeadershipMember, type RoleKey } from "@/lib/leadership";
 import { ROLE_LABELS, type Role } from "@/lib/roles";
 import ContentTree from "@/components/admin/ContentTree";
+import StatCard from "@/components/admin/StatCard";
+import StatCardSkeleton from "@/components/admin/StatCardSkeleton";
+import VisitsTimelineChart from "@/components/admin/VisitsTimelineChart";
+import { BookOpen, Eye, TrendingUp, Users } from "lucide-react";
 
 const MAX_BOOK_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const MAX_LOGO_FILE_SIZE = 2 * 1024 * 1024; // 2MB
@@ -70,6 +74,7 @@ type Course = {
   parent_course_id: number | null;
   view_count: number;
   order_index: number;
+  created_at: string;
 };
 type Book = {
   id: number;
@@ -99,6 +104,7 @@ type ProfileRow = {
   year_id: number | null;
   is_active: boolean;
   gender: string | null;
+  other_university_name: string | null;
 };
 type YearManagerRow = {
   id: number;
@@ -218,7 +224,7 @@ export default function AdminPage() {
     const withOrder = await supabase
       .from("courses")
       .select(
-        "id, name, description, year_id, term_id, category, parent_course_id, view_count, order_index"
+        "id, name, description, year_id, term_id, category, parent_course_id, view_count, order_index, created_at"
       )
       .order("order_index")
       .order("name");
@@ -228,7 +234,9 @@ export default function AdminPage() {
     // order_index ممكن يكون لسه معملوش migration (course_order_setup.sql)
     const withViewCount = await supabase
       .from("courses")
-      .select("id, name, description, year_id, term_id, category, parent_course_id, view_count")
+      .select(
+        "id, name, description, year_id, term_id, category, parent_course_id, view_count, created_at"
+      )
       .order("name");
 
     if (!withViewCount.error) {
@@ -238,7 +246,7 @@ export default function AdminPage() {
     // view_count ممكن يكون لسه معملوش migration (content_stats_setup.sql)
     const full = await supabase
       .from("courses")
-      .select("id, name, description, year_id, term_id, category, parent_course_id")
+      .select("id, name, description, year_id, term_id, category, parent_course_id, created_at")
       .order("name");
 
     if (!full.error) {
@@ -252,7 +260,7 @@ export default function AdminPage() {
     // نرجع لاستعلام بدونه عشان باقي التاب مايتوقفش بالكامل
     const withoutParent = await supabase
       .from("courses")
-      .select("id, name, description, year_id, term_id, category")
+      .select("id, name, description, year_id, term_id, category, created_at")
       .order("name");
 
     if (!withoutParent.error) {
@@ -345,7 +353,7 @@ export default function AdminPage() {
       supabase
         .from("profiles")
         .select(
-          "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender"
+          "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender, other_university_name"
         )
         .order("created_at"),
       supabase
@@ -609,7 +617,13 @@ export default function AdminPage() {
                 <ReportsTab reports={contentReports} supabase={supabase} onChange={loadAll} />
               )}
               {activeTab === "stats" && (
-                <StatsTab courses={courses} universities={universities} years={years} />
+                <StatsTab
+                  courses={courses}
+                  universities={universities}
+                  years={years}
+                  profiles={profiles}
+                  supabase={supabase}
+                />
               )}
             </div>
           )}
@@ -1092,6 +1106,14 @@ function UsersTab({
   const classifiedProfiles = profiles.filter((p) => !isUnclassified(p));
   const unclassifiedProfiles = profiles.filter(isUnclassified);
 
+  // طلاب اختاروا "أخرى (جامعتي غير موجودة)" وقت التسجيل — بيقعوا أصلاً
+  // ضمن unclassifiedProfiles (مفيش لهم year_id صحيح)، وبيتعرضوا هناك زي أي
+  // حساب غير مصنّف قابل للإدارة الكاملة؛ القسم ده إضافي وللعرض بس، عشان
+  // الأدمن يشوف حجم الطلب الفعلي على جامعات برّه القائمة الحالية.
+  const noUniversityStudents = profiles.filter(
+    (p) => p.role === "student" && p.university_id === null
+  );
+
   const GENDER_GROUPS: { key: string; label: string; match: (p: ProfileRow) => boolean }[] = [
     { key: "male", label: "ذكور", match: (p) => p.gender === "male" },
     { key: "female", label: "إناث", match: (p) => p.gender === "female" },
@@ -1406,6 +1428,43 @@ function UsersTab({
             </details>
           ))}
 
+          {noUniversityStudents.length > 0 && (
+            <details className="rounded-xl border border-subtle bg-card" open>
+              <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-ink">
+                طلاب بدون جامعة محددة{" "}
+                <span className="font-normal text-muted">({noUniversityStudents.length})</span>
+              </summary>
+              <div className="overflow-x-auto p-4 pt-0">
+                <table className="w-full text-right text-sm">
+                  <thead>
+                    <tr className="border-b border-subtle text-xs text-muted">
+                      <th className="px-3 py-2 font-medium">اسم الطالب</th>
+                      <th className="px-3 py-2 font-medium">البريد الإلكتروني</th>
+                      <th className="px-3 py-2 font-medium">الجامعة المكتوبة يدويًا</th>
+                      <th className="px-3 py-2 font-medium">تاريخ التسجيل</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {noUniversityStudents.map((profile) => (
+                      <tr key={profile.id} className="border-b border-subtle last:border-0">
+                        <td className="px-3 py-2 font-medium text-ink">
+                          {profile.full_name || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-muted">{profile.email}</td>
+                        <td className="px-3 py-2 text-muted">
+                          {profile.other_university_name || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-muted">
+                          {new Date(profile.created_at).toLocaleDateString("ar-EG")}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
+
           {unclassifiedProfiles.length > 0 && (
             <details className="rounded-xl border border-subtle bg-card" open>
               <summary className="cursor-pointer select-none px-4 py-3 font-semibold text-ink">
@@ -1589,20 +1648,66 @@ function ReportsTab({
   );
 }
 
+type SortColumn = "index" | "name" | "context" | "views";
+type SortDirection = "asc" | "desc";
+
+const STATS_PAGE_SIZE = 15;
+
+function percentChange(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return ((current - previous) / previous) * 100;
+}
+
+function isSameMonth(iso: string, reference: Date): boolean {
+  const d = new Date(iso);
+  return d.getFullYear() === reference.getFullYear() && d.getMonth() === reference.getMonth();
+}
+
 function StatsTab({
   courses,
   universities,
   years,
+  profiles,
+  supabase,
 }: {
   courses: Course[];
   universities: University[];
   years: Year[];
+  profiles: ProfileRow[];
+  supabase: SupabaseClient;
 }) {
-  const totalViews = courses.reduce((sum, c) => sum + (c.view_count || 0), 0);
+  const [recentAvgVisits, setRecentAvgVisits] = useState<{
+    current: number;
+    changePercent: number | null;
+  } | null>(null);
+  const [sortColumn, setSortColumn] = useState<SortColumn>("views");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [page, setPage] = useState(0);
 
-  const topCourses = [...courses]
-    .sort((a, b) => (b.view_count || 0) - (a.view_count || 0))
-    .slice(0, 15);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRecentAverage() {
+      const { data, error } = await supabase.rpc("get_daily_visit_counts", { days_back: 14 });
+      if (cancelled || error || !data) return;
+
+      const rows = data as { day: string; visit_count: number }[];
+      const last7 = rows.slice(7);
+      const previous7 = rows.slice(0, 7);
+      const currentAvg = last7.reduce((sum, r) => sum + Number(r.visit_count), 0) / 7;
+      const previousAvg = previous7.reduce((sum, r) => sum + Number(r.visit_count), 0) / 7;
+
+      setRecentAvgVisits({
+        current: currentAvg,
+        changePercent: percentChange(currentAvg, previousAvg),
+      });
+    }
+
+    loadRecentAverage();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   function courseContext(course: Course): string {
     if (course.category === "learning_path") return "مسار تعلم برمجة";
@@ -1611,36 +1716,134 @@ function StatsTab({
     return [university?.name, year?.name].filter(Boolean).join(" — ") || "—";
   }
 
+  const now = new Date();
+  const lastMonthRef = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  const totalViews = courses.reduce((sum, c) => sum + (c.view_count || 0), 0);
+
+  const newCoursesThisMonth = courses.filter((c) => isSameMonth(c.created_at, now)).length;
+  const newCoursesLastMonth = courses.filter((c) => isSameMonth(c.created_at, lastMonthRef)).length;
+
+  const students = profiles.filter((p) => p.role === "student");
+  const newStudentsThisMonth = students.filter((p) => isSameMonth(p.created_at, now)).length;
+  const newStudentsLastMonth = students.filter((p) => isSameMonth(p.created_at, lastMonthRef)).length;
+
+  function handleSort(column: SortColumn) {
+    if (sortColumn === column) {
+      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("desc");
+    }
+    setPage(0);
+  }
+
+  const sortedCourses = [...courses].sort((a, b) => {
+    let compare = 0;
+    switch (sortColumn) {
+      case "index":
+        compare = a.id - b.id;
+        break;
+      case "name":
+        compare = a.name.localeCompare(b.name, "ar");
+        break;
+      case "context":
+        compare = courseContext(a).localeCompare(courseContext(b), "ar");
+        break;
+      case "views":
+      default:
+        compare = (a.view_count || 0) - (b.view_count || 0);
+        break;
+    }
+    return sortDirection === "asc" ? compare : -compare;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sortedCourses.length / STATS_PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const pageCourses = sortedCourses.slice(
+    currentPage * STATS_PAGE_SIZE,
+    currentPage * STATS_PAGE_SIZE + STATS_PAGE_SIZE
+  );
+
+  const zeroVisitCourses = courses.filter((c) => (c.view_count || 0) === 0);
+
+  function SortableHeader({ column, label }: { column: SortColumn; label: string }) {
+    const isActive = sortColumn === column;
+    return (
+      <th className="px-4 py-3 font-medium">
+        <button
+          type="button"
+          onClick={() => handleSort(column)}
+          className="inline-flex items-center gap-1 text-xs font-medium text-muted transition-colors hover:text-ink"
+        >
+          {label}
+          <span className="text-gold">{isActive ? (sortDirection === "asc" ? "▲" : "▼") : ""}</span>
+        </button>
+      </th>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
-        <p className="text-sm text-muted">إجمالي عدد الزيارات لكل المواد</p>
-        <p className="mt-1 text-3xl font-extrabold text-ink">
-          {totalViews.toLocaleString("ar-EG")}
-        </p>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          icon={Eye}
+          label="إجمالي عدد الزيارات"
+          value={totalViews}
+          formatter={(n) => n.toLocaleString("ar-EG")}
+        />
+        {recentAvgVisits ? (
+          <StatCard
+            icon={TrendingUp}
+            label="متوسط الزيارات اليومي (آخر 7 أيام)"
+            value={Math.round(recentAvgVisits.current)}
+            changePercent={recentAvgVisits.changePercent}
+            formatter={(n) => n.toLocaleString("ar-EG")}
+          />
+        ) : (
+          <StatCardSkeleton />
+        )}
+        <StatCard
+          icon={Users}
+          label="الطلاب المسجلين"
+          value={students.length}
+          changePercent={percentChange(newStudentsThisMonth, newStudentsLastMonth)}
+          formatter={(n) => n.toLocaleString("ar-EG")}
+        />
+        <StatCard
+          icon={BookOpen}
+          label="المواد الجديدة هذا الشهر"
+          value={newCoursesThisMonth}
+          changePercent={percentChange(newCoursesThisMonth, newCoursesLastMonth)}
+          formatter={(n) => n.toLocaleString("ar-EG")}
+        />
       </div>
+
+      <VisitsTimelineChart />
 
       <div className="overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
         <table className="w-full text-right text-sm">
           <thead>
             <tr className="border-b border-subtle text-xs text-muted">
-              <th className="px-4 py-3 font-medium">#</th>
-              <th className="px-4 py-3 font-medium">المادة</th>
-              <th className="px-4 py-3 font-medium">الجامعة / الفرقة</th>
-              <th className="px-4 py-3 font-medium">عدد الزيارات</th>
+              <SortableHeader column="index" label="#" />
+              <SortableHeader column="name" label="المادة" />
+              <SortableHeader column="context" label="الجامعة / الفرقة" />
+              <SortableHeader column="views" label="عدد الزيارات" />
             </tr>
           </thead>
           <tbody>
-            {topCourses.length === 0 ? (
+            {pageCourses.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-muted">
                   لا توجد بيانات كفاية بعد
                 </td>
               </tr>
             ) : (
-              topCourses.map((course, index) => (
+              pageCourses.map((course, index) => (
                 <tr key={course.id} className="border-b border-subtle last:border-0">
-                  <td className="px-4 py-3 text-muted">{index + 1}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {currentPage * STATS_PAGE_SIZE + index + 1}
+                  </td>
                   <td className="px-4 py-3 font-medium text-ink">{course.name}</td>
                   <td className="px-4 py-3 text-muted">{courseContext(course)}</td>
                   <td className="px-4 py-3 font-semibold text-gold">{course.view_count}</td>
@@ -1649,6 +1852,59 @@ function StatsTab({
             )}
           </tbody>
         </table>
+
+        {sortedCourses.length > STATS_PAGE_SIZE && (
+          <div className="flex items-center justify-between border-t border-subtle px-4 py-3 text-sm">
+            <button
+              type="button"
+              disabled={currentPage === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              className="font-medium text-gold hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              السابق
+            </button>
+            <span className="text-muted">
+              صفحة {currentPage + 1} من {totalPages}
+            </span>
+            <button
+              type="button"
+              disabled={currentPage >= totalPages - 1}
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              className="font-medium text-gold hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              التالي
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-subtle bg-card shadow-sm">
+        <p className="px-6 pt-5 text-sm font-semibold text-ink">
+          محتوى بدون زيارات{" "}
+          <span className="font-normal text-muted">({zeroVisitCourses.length})</span>
+        </p>
+        {zeroVisitCourses.length === 0 ? (
+          <p className="px-6 py-5 text-sm text-muted">كل المواد عليها زيارات — لا يوجد محتوى مهجور</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-right text-sm">
+              <thead>
+                <tr className="border-b border-subtle text-xs text-muted">
+                  <th className="px-4 py-3 font-medium">المادة</th>
+                  <th className="px-4 py-3 font-medium">الجامعة / الفرقة</th>
+                </tr>
+              </thead>
+              <tbody>
+                {zeroVisitCourses.map((course) => (
+                  <tr key={course.id} className="border-b border-subtle last:border-0">
+                    <td className="px-4 py-3 font-medium text-ink">{course.name}</td>
+                    <td className="px-4 py-3 text-muted">{courseContext(course)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
