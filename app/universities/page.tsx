@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import ScrollReveal from "@/components/ScrollReveal";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function UniversitiesPage() {
         </p>
       </section>
 
+      <ScrollReveal>
       <section className="flex-1 bg-canvas px-4 py-12 sm:px-6">
         <div className="mx-auto max-w-5xl">
           {error && (
@@ -74,6 +76,7 @@ export default async function UniversitiesPage() {
           )}
         </div>
       </section>
+      </ScrollReveal>
     </div>
   );
 }

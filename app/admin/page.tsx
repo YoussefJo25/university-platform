@@ -4259,8 +4259,96 @@ function SettingsTab({
         </div>
       </div>
 
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-ink">محتوى الصفحة الرئيسية</h2>
+
+        <h3 className="mt-5 text-sm font-semibold text-gold">قسم الهيرو</h3>
+        <div className="mt-3 flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <div className="flex-1">
+              <label className="mb-1.5 block text-sm font-medium text-ink">
+                السطر الأول من العنوان
+              </label>
+              <input
+                required
+                value={form.hero_title_line1}
+                onChange={(e) => updateField("hero_title_line1", e.target.value)}
+                className={inputClasses}
+              />
+            </div>
+            <div className="flex-1">
+              <label className="mb-1.5 block text-sm font-medium text-ink">
+                الكلمة المظلّلة بالذهبي
+              </label>
+              <input
+                required
+                value={form.hero_title_highlight}
+                onChange={(e) => updateField("hero_title_highlight", e.target.value)}
+                className={inputClasses}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink">
+              السطر الثاني من العنوان
+            </label>
+            <input
+              required
+              value={form.hero_title_line2}
+              onChange={(e) => updateField("hero_title_line2", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink">
+              نص الإهداء القصير (تحت العنوان)
+            </label>
+            <input
+              required
+              value={form.hero_dedication_text}
+              onChange={(e) => updateField("hero_dedication_text", e.target.value)}
+              className={inputClasses}
+            />
+          </div>
+        </div>
+
+        <p className="mt-4 text-xs text-muted">
+          ملحوظة: نص قسم "الإهداء" المنفصل (تحت أسماء القيادة) بيتعدّل من تاب "القيادة"، مش من هنا.
+        </p>
+
+        <h3 className="mt-6 text-sm font-semibold text-gold">محطات رحلة الطالب</h3>
+        <div className="mt-3 flex flex-col gap-4">
+          {([1, 2, 3, 4] as const).map((n) => (
+            <div key={n} className="flex flex-col gap-3 rounded-lg bg-panel p-3 sm:flex-row">
+              <div className="flex-1">
+                <label className="mb-1.5 block text-sm font-medium text-ink">
+                  عنوان المحطة {n}
+                </label>
+                <input
+                  required
+                  value={form[`journey_station_${n}_title` as const]}
+                  onChange={(e) => updateField(`journey_station_${n}_title` as const, e.target.value)}
+                  className={inputClasses}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="mb-1.5 block text-sm font-medium text-ink">
+                  وصف فرعي للمحطة {n}
+                </label>
+                <input
+                  required
+                  value={form[`journey_station_${n}_sub` as const]}
+                  onChange={(e) => updateField(`journey_station_${n}_sub` as const, e.target.value)}
+                  className={inputClasses}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {formError && <p className="text-sm text-red-600">{formError}</p>}
-      {successMessage && <p className="text-sm text-green-600">تم حفظ الإعدادات بنجاح.</p>}
+      {successMessage && <p className="text-sm text-green-600">تم الحفظ.</p>}
 
       <div>
         <button

@@ -1,6 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import GradientButton from "@/components/GradientButton";
+import ScrollReveal from "@/components/ScrollReveal";
+import CompassSignature from "@/components/home/CompassSignature";
+import RealContentShowcase, { type CoursePreview } from "@/components/home/RealContentShowcase";
+import StudentJourney from "@/components/home/StudentJourney";
+import DedicationSection from "@/components/home/DedicationSection";
+import PublicStatsBar from "@/components/home/PublicStatsBar";
 import { createClient } from "@/lib/supabase/server";
 import { getSiteSettings } from "@/lib/siteSettings";
 import { getLeadershipMembers, ROLE_FALLBACK_TITLE, ROLE_ORDER } from "@/lib/leadership";
@@ -17,7 +23,35 @@ export default async function Home() {
     },
     settings,
     leadershipMembers,
-  ] = await Promise.all([supabase.auth.getUser(), getSiteSettings(), getLeadershipMembers()]);
+    coursePreviewsRes,
+    publicStatsRes,
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    getSiteSettings(),
+    getLeadershipMembers(),
+    supabase
+      .from("public_course_previews")
+      .select("id, name, category, view_count, video_count, context_label")
+      .order("view_count", { ascending: false })
+      .limit(3),
+    supabase.rpc("get_public_platform_stats").single(),
+  ]);
+
+  const journeyStations = [
+    { title: settings.journey_station_1_title, subtitle: settings.journey_station_1_sub },
+    { title: settings.journey_station_2_title, subtitle: settings.journey_station_2_sub },
+    { title: settings.journey_station_3_title, subtitle: settings.journey_station_3_sub },
+    { title: settings.journey_station_4_title, subtitle: settings.journey_station_4_sub },
+  ];
+
+  const coursePreviews = (coursePreviewsRes.data ?? []) as CoursePreview[];
+  const publicStats = publicStatsRes.data as {
+    total_views: number;
+    total_students: number;
+    total_universities: number;
+  } | null;
+
+  const dedicationMember = leadershipMembers.find((member) => member.role_key === "dedication");
 
   const membersByRole = new Map(leadershipMembers.map((member) => [member.role_key, member]));
   const orderedMembers = ROLE_ORDER.map(
@@ -82,33 +116,52 @@ export default async function Home() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <section className="border-b border-subtle bg-panel px-4 py-24 text-center sm:px-6">
-        <div className="mx-auto max-w-3xl">
+      <ScrollReveal>
+      <section className="relative overflow-hidden border-b border-subtle bg-panel px-4 py-24 text-center sm:px-6">
+        <CompassSignature />
+        <div className="relative mx-auto max-w-3xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-gold/50 bg-canvas/40 px-4 py-1.5 text-xs font-semibold tracking-wide text-gold">
             <span className="h-1.5 w-1.5 rounded-full bg-gold" />
             المنصة الإلكترونية الرسمية
           </span>
-          <h1 className="mt-5 text-3xl font-extrabold font-display text-ink sm:text-5xl">
+          <h1 className="mt-5 font-display text-4xl font-extrabold text-ink sm:text-6xl">
             {user ? (
               <>
-                أهلاً بيك يا <span className="italic text-gold">{displayName}</span>
+                أهلاً بيك يا <span className="text-gold-light italic">{displayName}</span>
               </>
             ) : (
-              settings.hero_title
+              <>
+                {settings.hero_title_line1}{" "}
+                <span className="text-gold-light">{settings.hero_title_highlight}</span>
+                <br />
+                {settings.hero_title_line2}
+              </>
             )}
           </h1>
-          <p className="mt-4 text-base text-muted sm:text-lg">{settings.hero_subtitle}</p>
-          <div className="mt-8 flex justify-center">
+          <p className="mt-4 text-base text-muted sm:text-lg">{settings.hero_dedication_text}</p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
             <Link
               href={user ? "/universities" : "/login"}
               className="inline-flex items-center justify-center rounded-full bg-gold px-6 py-3 text-sm font-semibold text-gold-ink shadow-md transition-transform hover:scale-105 hover:shadow-lg"
             >
-              ابدأ الآن
+              ابدأ رحلتك التعليمية
+            </Link>
+            <Link
+              href="/learning-path"
+              className="inline-flex items-center justify-center rounded-full border border-gold/40 px-6 py-3 text-sm font-semibold text-ink transition-colors hover:border-gold hover:text-gold-light"
+            >
+              تصفح المواد
             </Link>
           </div>
         </div>
       </section>
+      </ScrollReveal>
 
+      <RealContentShowcase courses={coursePreviews} />
+
+      <StudentJourney stations={journeyStations} />
+
+      <ScrollReveal>
       <section className="bg-canvas px-4 py-16 sm:px-6">
         <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {cards.map((item) => (
@@ -129,7 +182,29 @@ export default async function Home() {
           </div>
         )}
       </section>
+      </ScrollReveal>
 
+      {dedicationMember && (
+        <DedicationSection
+          name={dedicationMember.name}
+          title={dedicationMember.title}
+          bio={dedicationMember.bio}
+        />
+      )}
+
+      {publicStats && (
+        <ScrollReveal>
+        <section className="bg-canvas px-4 py-16 sm:px-6">
+          <PublicStatsBar
+            totalViews={publicStats.total_views}
+            totalStudents={publicStats.total_students}
+            totalUniversities={publicStats.total_universities}
+          />
+        </section>
+        </ScrollReveal>
+      )}
+
+      <ScrollReveal>
       <section className="border-t border-subtle bg-panel px-4 py-16 sm:px-6">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-2xl font-extrabold font-display text-ink sm:text-3xl">
@@ -191,6 +266,7 @@ export default async function Home() {
           </div>
         </div>
       </section>
+      </ScrollReveal>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import ActivityHeartbeat from "@/components/ActivityHeartbeat";
+import CustomCursor from "@/components/CustomCursor";
 import { VideoActivityProvider } from "@/contexts/VideoActivityContext";
 import { getSiteSettings } from "@/lib/siteSettings";
 import "./globals.css";
@@ -72,6 +73,7 @@ export default async function RootLayout({
         />
         <VideoActivityProvider>
           <ActivityHeartbeat />
+          <CustomCursor />
           <Header universityName={settings.university_name} logoUrl={settings.logo_url} />
           <main className="flex flex-1 flex-col">{children}</main>
           <Footer settings={settings} />
