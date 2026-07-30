@@ -21,8 +21,8 @@ const TRACK_CONTENT: Record<
   }
 > = {
   university: {
-    tabLabel: "مسار السنين الدراسية",
-    title: "مسار السنين الدراسية",
+    tabLabel: "مسار الجامعات",
+    title: "مسار الجامعات",
     description:
       "مرتبط بمنهج كليتك الرسمي بالظبط، منظّم بالجامعة والفرقة والترم والمادة، عشان متضيّعش وقت في البحث عن مصدر المحاضرة الصح.",
     bullets: [
@@ -31,7 +31,7 @@ const TRACK_CONTENT: Record<
       "فيديوهات وكتب في مكان واحد لكل مادة",
     ],
     href: "/universities",
-    ctaLabel: "تصفح السنين الدراسية",
+    ctaLabel: "تصفح مسار الجامعات",
     icon: BookOpen,
   },
   programming: {

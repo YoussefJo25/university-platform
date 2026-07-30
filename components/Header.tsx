@@ -10,7 +10,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 
 const baseNavLinks = [
   { href: "/", label: "الرئيسية" },
-  { href: "/universities", label: "السنين الدراسية" },
+  { href: "/universities", label: "مسار الجامعات" },
   { href: "/learning-path", label: "مسار تعلم البرمجة" },
   { href: "/compiler", label: "الكمبايلر" },
 ];
@@ -111,7 +111,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-subtle bg-panel shadow-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <div className="flex items-center justify-between px-6 py-3 sm:px-10">
         <Link href="/" className="flex items-center gap-3">
           <Image
             src={logoUrl || "/logo.jpeg"}
@@ -132,7 +132,9 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
           )}
 
           <ThemeToggle />
+        </nav>
 
+        <div className="hidden items-center gap-4 md:flex">
           {email ? (
             <div className="flex items-center gap-4">
               <Link
@@ -174,7 +176,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
               تسجيل الدخول
             </Link>
           )}
-        </nav>
+        </div>
 
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />

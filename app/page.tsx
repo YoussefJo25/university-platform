@@ -87,7 +87,7 @@ export default async function Home() {
 
   const cards = [
     {
-      title: "السنين الدراسية",
+      title: "مسار الجامعات",
       desc: "تصفح المقررات والمحتوى الخاص بكل سنة دراسية",
       href: "/universities",
     },

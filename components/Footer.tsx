@@ -4,7 +4,7 @@ import { MailIcon, PhoneIcon, WhatsAppIcon, FacebookIcon, LinkedInIcon, Instagra
 
 const quickLinks = [
   { href: "/", label: "الرئيسية" },
-  { href: "/universities", label: "السنين الدراسية" },
+  { href: "/universities", label: "مسار الجامعات" },
   { href: "/learning-path", label: "مسار تعلم البرمجة" },
   { href: "/compiler", label: "الكمبايلر" },
   { href: "/support", label: "الدعم الفني" },
