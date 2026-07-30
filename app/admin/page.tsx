@@ -156,6 +156,7 @@ const SUPER_ADMIN_ONLY_TABS: TabKey[] = [
   "reports",
   "stats",
   "studentTime",
+  "gradingScale",
 ];
 
 type TabKey =
@@ -169,7 +170,8 @@ type TabKey =
   | "auditLog"
   | "reports"
   | "stats"
-  | "studentTime";
+  | "studentTime"
+  | "gradingScale";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "universities", label: "الجامعات" },
@@ -183,6 +185,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "reports", label: "البلاغات" },
   { key: "stats", label: "الإحصائيات" },
   { key: "studentTime", label: "وقت الطلاب" },
+  { key: "gradingScale", label: "نظام تقييم الجامعة" },
 ];
 
 const inputClasses =
@@ -639,6 +642,9 @@ export default function AdminPage() {
               )}
               {activeTab === "studentTime" && (
                 <StudentTimeTab profiles={profiles} universities={universities} years={years} supabase={supabase} />
+              )}
+              {activeTab === "gradingScale" && (
+                <GradingScaleTab universities={universities} supabase={supabase} />
               )}
             </div>
           )}
@@ -2342,6 +2348,263 @@ function StudentDrillDownModal({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+type GradingScaleRow = {
+  id: string;
+  min_score: number;
+  max_score: number;
+  letter_grade: string;
+  grade_point: number;
+};
+
+function createEmptyGradingScaleRow(): GradingScaleRow {
+  return { id: `temp-${crypto.randomUUID()}`, min_score: 0, max_score: 0, letter_grade: "", grade_point: 0 };
+}
+
+function validateGradingScaleRows(rows: GradingScaleRow[]): string[] {
+  const issues: string[] = [];
+  const sorted = [...rows].sort((a, b) => a.min_score - b.min_score);
+
+  for (let i = 1; i < sorted.length; i += 1) {
+    const prev = sorted[i - 1];
+    const curr = sorted[i];
+    if (curr.min_score < prev.max_score) {
+      issues.push(
+        `تداخل بين "${prev.letter_grade || "—"}" (${prev.min_score}–${prev.max_score}) و"${curr.letter_grade || "—"}" (${curr.min_score}–${curr.max_score})`
+      );
+    } else if (curr.min_score > prev.max_score) {
+      issues.push(
+        `فجوة غير مغطاة بين ${prev.max_score} و${curr.min_score} (بين "${prev.letter_grade || "—"}" و"${curr.letter_grade || "—"}")`
+      );
+    }
+  }
+
+  if (sorted.length > 0) {
+    if (sorted[0].min_score > 0) {
+      issues.push(`النطاق مش بيغطي من صفر (بيبدأ من ${sorted[0].min_score})`);
+    }
+    const last = sorted[sorted.length - 1];
+    if (last.max_score < 100) {
+      issues.push(`النطاق مش بيغطي لحد 100 (بيوقف عند ${last.max_score})`);
+    }
+  }
+
+  return issues;
+}
+
+function GradingScaleTab({
+  universities,
+  supabase,
+}: {
+  universities: University[];
+  supabase: SupabaseClient;
+}) {
+  const [selectedUniversityId, setSelectedUniversityId] = useState<number | "">(
+    universities[0]?.id ?? ""
+  );
+  const [rows, setRows] = useState<GradingScaleRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [savedMessage, setSavedMessage] = useState(false);
+
+  useEffect(() => {
+    if (!selectedUniversityId) return;
+
+    async function load() {
+      setLoading(true);
+      setWarnings([]);
+      const { data } = await supabase
+        .from("grading_scales")
+        .select("id, min_score, max_score, letter_grade, grade_point")
+        .eq("university_id", selectedUniversityId)
+        .order("display_order");
+      setRows((data ?? []) as GradingScaleRow[]);
+      setLoading(false);
+    }
+
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUniversityId]);
+
+  function updateRow(id: string, patch: Partial<GradingScaleRow>) {
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+    setSavedMessage(false);
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, createEmptyGradingScaleRow()]);
+    setSavedMessage(false);
+  }
+
+  function removeRow(id: string) {
+    setRows((prev) => prev.filter((row) => row.id !== id));
+    setSavedMessage(false);
+  }
+
+  async function handleSave() {
+    const issues = validateGradingScaleRows(rows);
+    setWarnings(issues);
+
+    if (issues.length > 0) {
+      const proceed = confirm(
+        `فيه ${issues.length} مشكلة في النطاقات:\n\n${issues.join("\n")}\n\nتحفظ برضو؟`
+      );
+      if (!proceed) return;
+    }
+
+    setSaving(true);
+
+    await supabase.from("grading_scales").delete().eq("university_id", selectedUniversityId);
+
+    const validRows = rows.filter((row) => row.letter_grade.trim());
+    if (validRows.length > 0) {
+      await supabase.from("grading_scales").insert(
+        validRows.map((row, index) => ({
+          university_id: selectedUniversityId,
+          min_score: row.min_score,
+          max_score: row.max_score,
+          letter_grade: row.letter_grade.trim(),
+          grade_point: row.grade_point,
+          display_order: index,
+        }))
+      );
+    }
+
+    setSaving(false);
+    setSavedMessage(true);
+    window.setTimeout(() => setSavedMessage(false), 3000);
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-ink">الجامعة</label>
+        <select
+          value={selectedUniversityId}
+          onChange={(e) => setSelectedUniversityId(Number(e.target.value))}
+          className={`max-w-sm ${inputClasses}`}
+        >
+          {universities.map((university) => (
+            <option key={university.id} value={university.id}>
+              {university.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted">جارٍ التحميل...</p>
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
+            <table className="w-full min-w-[520px] text-right text-sm">
+              <thead>
+                <tr className="border-b border-subtle text-xs text-muted">
+                  <th className="px-4 py-3 font-medium">الحد الأدنى</th>
+                  <th className="px-4 py-3 font-medium">الحد الأقصى</th>
+                  <th className="px-4 py-3 font-medium">التقدير الحرفي</th>
+                  <th className="px-4 py-3 font-medium">النقطة</th>
+                  <th className="px-4 py-3 font-medium" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-6 text-center text-muted">
+                      لسه مفيش نطاقات درجات مضافة لهذه الجامعة
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.id} className="border-b border-subtle last:border-0">
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          value={row.min_score}
+                          onChange={(e) => updateRow(row.id, { min_score: Number(e.target.value) })}
+                          className={`w-24 ${inputClasses}`}
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          value={row.max_score}
+                          onChange={(e) => updateRow(row.id, { max_score: Number(e.target.value) })}
+                          className={`w-24 ${inputClasses}`}
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          value={row.letter_grade}
+                          onChange={(e) => updateRow(row.id, { letter_grade: e.target.value })}
+                          placeholder="B+"
+                          className={`w-24 ${inputClasses}`}
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input
+                          type="number"
+                          step={0.1}
+                          value={row.grade_point}
+                          onChange={(e) => updateRow(row.id, { grade_point: Number(e.target.value) })}
+                          className={`w-24 ${inputClasses}`}
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeRow(row.id)}
+                          className="text-muted transition-colors hover:text-red-600"
+                          aria-label="حذف النطاق"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+
+            <div className="p-4">
+              <button
+                type="button"
+                onClick={addRow}
+                className="rounded-full border border-gold/40 px-4 py-2 text-sm font-semibold text-ink transition-colors hover:border-gold hover:text-gold-light"
+              >
+                + إضافة نطاق درجات
+              </button>
+            </div>
+          </div>
+
+          {warnings.length > 0 && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4">
+              <p className="text-sm font-semibold text-amber-600">تحذيرات في النطاقات:</p>
+              <ul className="mt-2 list-inside list-disc text-sm text-amber-600">
+                {warnings.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-full bg-gold px-6 py-2.5 text-sm font-semibold text-gold-ink shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+            >
+              {saving ? "جارٍ الحفظ..." : "حفظ التغييرات"}
+            </button>
+            {savedMessage && <span className="text-sm text-emerald-500">تم الحفظ ✓</span>}
+          </div>
+        </>
+      )}
     </div>
   );
 }

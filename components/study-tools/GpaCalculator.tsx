@@ -7,43 +7,21 @@ import GpaTargetCalculator from "./GpaTargetCalculator";
 import GpaGradeScale from "./GpaGradeScale";
 import GpaFaq from "./GpaFaq";
 
-type GradeOption = "A" | "A-" | "B+" | "B" | "C+" | "C" | "C-" | "D+" | "D" | "F";
-
-// نظام نقاط قياسي شائع الاستخدام في الجامعات المصرية (من 4.0)، بمقياس
-// 10 درجات كامل.
-const GRADE_POINTS: Record<GradeOption, number> = {
-  A: 4.0,
-  "A-": 3.7,
-  "B+": 3.3,
-  B: 3.0,
-  "C+": 2.3,
-  C: 2.0,
-  "C-": 1.7,
-  "D+": 1.3,
-  D: 1.0,
-  F: 0.0,
+export type GradingScaleRow = {
+  id: string;
+  min_score: number;
+  max_score: number;
+  letter_grade: string;
+  grade_point: number;
 };
 
-const GRADE_LABELS: Record<GradeOption, string> = {
-  A: "امتياز",
-  "A-": "جيد جداً مرتفع",
-  "B+": "جيد جداً",
-  B: "جيد",
-  "C+": "مقبول مرتفع",
-  C: "مقبول",
-  "C-": "مقبول منخفض",
-  "D+": "ضعيف مرتفع",
-  D: "ضعيف",
-  F: "راسب",
-};
-
-const GRADE_OPTIONS = Object.keys(GRADE_POINTS) as GradeOption[];
+type UniversityOption = { id: number; name: string };
 
 type GpaRow = {
   id: string;
   course_name: string;
-  credit_hours: number;
-  grade: GradeOption;
+  credit_hours: number | "";
+  score: number | "";
   is_retake: boolean;
 };
 
@@ -58,10 +36,25 @@ function createEmptyRow(): GpaRow {
   return {
     id: `temp-${crypto.randomUUID()}`,
     course_name: "",
-    credit_hours: 3,
-    grade: "B",
+    // الساعات المعتمدة مش موحّدة لكل المواد (1 لساينتفك ثينكينج، 2
+    // للتكنيكال رايتنج، 3 لباقي المواد)، فمفيش رقم افتراضي — الطالب
+    // بيدخلها بنفسه.
+    credit_hours: "",
+    score: "",
     is_retake: false,
   };
+}
+
+// إيجاد النطاق اللي بيغطي درجة معينة — الحد الأدنى شامل، الحد الأقصى
+// غير شامل، إلا النطاق الأعلى (اللي وصوله لـ100) بيبقى شامل الطرفين
+// عشان درجة 100 بالظبط تتغطى.
+function findGradeForScore(score: number, scaleRows: GradingScaleRow[]): GradingScaleRow | null {
+  return (
+    scaleRows.find((row) => {
+      if (score === 100 && row.max_score === 100) return true;
+      return score >= row.min_score && score < row.max_score;
+    }) ?? null
+  );
 }
 
 const inputClasses =
@@ -76,18 +69,31 @@ export default function GpaCalculator() {
   const [savedMessage, setSavedMessage] = useState(false);
   const [results, setResults] = useState<Results | null>(null);
 
+  const [universities, setUniversities] = useState<UniversityOption[]>([]);
+  const [selectedUniversityId, setSelectedUniversityId] = useState<number | "">("");
+  const [scaleRows, setScaleRows] = useState<GradingScaleRow[]>([]);
+
+  // تحميل بيانات المستخدم المحفوظة (السجل السابق + المواد) وقائمة
+  // الجامعات مرة واحدة بس عند فتح الصفحة.
   useEffect(() => {
     async function load() {
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      const { data: universityRows } = await supabase
+        .from("universities")
+        .select("id, name")
+        .order("order_index");
+      setUniversities((universityRows ?? []) as UniversityOption[]);
+
       if (!user) {
         setLoading(false);
         return;
       }
 
-      const [{ data: profileRow }, { data: entryRows }] = await Promise.all([
+      const [{ data: profileRow }, { data: entryRows }, { data: studentProfile }] = await Promise.all([
         supabase
           .from("gpa_profile")
           .select("prior_attempted_hours, prior_cgpa")
@@ -95,9 +101,10 @@ export default function GpaCalculator() {
           .maybeSingle(),
         supabase
           .from("gpa_entries")
-          .select("id, course_name, credit_hours, grade, is_retake")
+          .select("id, course_name, credit_hours, score, is_retake")
           .eq("user_id", user.id)
           .order("created_at"),
+        supabase.from("profiles").select("university_id").eq("id", user.id).maybeSingle(),
       ]);
 
       if (profileRow) {
@@ -106,14 +113,44 @@ export default function GpaCalculator() {
       }
 
       if (entryRows && entryRows.length > 0) {
-        setRows(entryRows as GpaRow[]);
+        setRows(
+          entryRows.map((row) => ({
+            id: row.id,
+            course_name: row.course_name,
+            credit_hours: row.credit_hours,
+            score: row.score ?? "",
+            is_retake: row.is_retake,
+          }))
+        );
       }
+
+      // الجامعة الافتراضية: جامعة الطالب المسجّلة في بروفايله لو موجودة،
+      // وإلا أول جامعة في القائمة (حالة "طالب بدون جامعة محددة").
+      const defaultUniversityId = studentProfile?.university_id ?? universityRows?.[0]?.id ?? "";
+      setSelectedUniversityId(defaultUniversityId);
 
       setLoading(false);
     }
 
     load();
   }, []);
+
+  // تحميل نظام تقييم الجامعة المختارة كل ما الاختيار يتغيّر.
+  useEffect(() => {
+    if (!selectedUniversityId) return;
+
+    async function loadScale() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("grading_scales")
+        .select("id, min_score, max_score, letter_grade, grade_point")
+        .eq("university_id", selectedUniversityId)
+        .order("display_order");
+      setScaleRows((data ?? []) as GradingScaleRow[]);
+    }
+
+    loadScale();
+  }, [selectedUniversityId]);
 
   function clearResults() {
     setResults(null);
@@ -145,9 +182,12 @@ export default function GpaCalculator() {
 
     for (const row of rows) {
       const hours = Number(row.credit_hours) || 0;
-      if (hours <= 0) continue;
-      const points = GRADE_POINTS[row.grade];
-      termPoints += points * hours;
+      if (hours <= 0 || row.score === "") continue;
+
+      const matched = findGradeForScore(Number(row.score), scaleRows);
+      if (!matched) continue; // درجة برّه كل النطاقات — مش هتدخل في الحساب
+
+      termPoints += matched.grade_point * hours;
       termHours += hours;
       if (!row.is_retake) {
         newCumulativeHours += hours;
@@ -175,7 +215,7 @@ export default function GpaCalculator() {
       return;
     }
 
-    const validRows = rows.filter((row) => row.course_name.trim() && row.credit_hours > 0);
+    const validRows = rows.filter((row) => row.course_name.trim() && Number(row.credit_hours) > 0);
 
     await supabase.from("gpa_profile").upsert(
       {
@@ -194,13 +234,18 @@ export default function GpaCalculator() {
 
     if (validRows.length > 0) {
       await supabase.from("gpa_entries").insert(
-        validRows.map((row) => ({
-          user_id: user.id,
-          course_name: row.course_name.trim(),
-          credit_hours: row.credit_hours,
-          grade: row.grade,
-          is_retake: row.is_retake,
-        }))
+        validRows.map((row) => {
+          const scoreValue = row.score === "" ? null : Number(row.score);
+          const matched = scoreValue !== null ? findGradeForScore(scoreValue, scaleRows) : null;
+          return {
+            user_id: user.id,
+            course_name: row.course_name.trim(),
+            credit_hours: Number(row.credit_hours),
+            score: scoreValue,
+            grade: matched?.letter_grade ?? "—",
+            is_retake: row.is_retake,
+          };
+        })
       );
     }
 
@@ -213,8 +258,29 @@ export default function GpaCalculator() {
     return <p className="py-12 text-center text-sm text-muted">جارٍ التحميل...</p>;
   }
 
+  const selectedUniversityName =
+    universities.find((u) => u.id === selectedUniversityId)?.name ?? null;
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <label className="mb-1.5 block text-sm font-medium text-ink">
+          نظام التقييم المستخدم (جامعتك)
+        </label>
+        <select
+          value={selectedUniversityId}
+          onChange={(e) => setSelectedUniversityId(Number(e.target.value))}
+          className={inputClasses}
+        >
+          {universities.length === 0 && <option value="">جارٍ التحميل...</option>}
+          {universities.map((university) => (
+            <option key={university.id} value={university.id}>
+              {university.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
         <h2 className="text-lg font-bold text-ink">السجل الأكاديمي السابق</h2>
         <p className="mt-1 text-sm text-muted">
@@ -261,66 +327,87 @@ export default function GpaCalculator() {
             <tr className="border-b border-subtle text-xs text-muted">
               <th className="px-4 py-3 font-medium">اسم المادة</th>
               <th className="px-4 py-3 font-medium">الساعات المعتمدة</th>
-              <th className="px-4 py-3 font-medium">الدرجة المتوقعة</th>
+              <th className="px-4 py-3 font-medium">الدرجة من 100</th>
               <th className="px-4 py-3 font-medium">معادة</th>
               <th className="px-4 py-3 font-medium" />
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-subtle last:border-0">
-                <td className="px-4 py-2">
-                  <input
-                    value={row.course_name}
-                    onChange={(e) => updateRow(row.id, { course_name: e.target.value })}
-                    placeholder="اسم المادة"
-                    className={inputClasses}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.5}
-                    value={row.credit_hours}
-                    onChange={(e) =>
-                      updateRow(row.id, { credit_hours: Math.max(0, Number(e.target.value)) })
-                    }
-                    className={`w-24 ${inputClasses}`}
-                  />
-                </td>
-                <td className="px-4 py-2">
-                  <select
-                    value={row.grade}
-                    onChange={(e) => updateRow(row.id, { grade: e.target.value as GradeOption })}
-                    className={inputClasses}
-                  >
-                    {GRADE_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {GRADE_LABELS[option]} ({GRADE_POINTS[option].toFixed(1)})
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-4 py-2 text-center">
-                  <RetakeToggle
-                    checked={row.is_retake}
-                    onChange={(checked) => updateRow(row.id, { is_retake: checked })}
-                  />
-                </td>
-                <td className="px-2 py-2 text-center">
-                  <button
-                    type="button"
-                    onClick={() => removeRow(row.id)}
-                    disabled={rows.length === 1}
-                    className="text-muted transition-colors hover:text-red-600 disabled:opacity-30"
-                    aria-label="حذف المادة"
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const scoreValue = row.score === "" ? null : Number(row.score);
+              const matched = scoreValue !== null ? findGradeForScore(scoreValue, scaleRows) : null;
+              const isOutOfRange = scoreValue !== null && !matched && scaleRows.length > 0;
+
+              return (
+                <tr key={row.id} className="border-b border-subtle last:border-0">
+                  <td className="px-4 py-2 align-top">
+                    <input
+                      value={row.course_name}
+                      onChange={(e) => updateRow(row.id, { course_name: e.target.value })}
+                      placeholder="اسم المادة"
+                      className={inputClasses}
+                    />
+                  </td>
+                  <td className="px-4 py-2 align-top">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.5}
+                      value={row.credit_hours}
+                      onChange={(e) =>
+                        updateRow(row.id, {
+                          credit_hours: e.target.value === "" ? "" : Math.max(0, Number(e.target.value)),
+                        })
+                      }
+                      placeholder="مثال: 3"
+                      className={`w-24 ${inputClasses}`}
+                    />
+                  </td>
+                  <td className="px-4 py-2 align-top">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={row.score}
+                      onChange={(e) =>
+                        updateRow(row.id, {
+                          score: e.target.value === "" ? "" : Math.max(0, Math.min(100, Number(e.target.value))),
+                        })
+                      }
+                      placeholder="مثال: 78"
+                      className={`w-24 ${inputClasses}`}
+                    />
+                    {matched && (
+                      <p className="mt-1 text-xs text-emerald-500">
+                        {scoreValue} → {matched.letter_grade} ({matched.grade_point.toFixed(2)})
+                      </p>
+                    )}
+                    {isOutOfRange && (
+                      <p className="mt-1 text-xs text-red-600">
+                        الدرجة دي مش متغطاة في نظام التقييم، تواصل مع الإدارة
+                      </p>
+                    )}
+                  </td>
+                  <td className="px-4 py-2 text-center align-top">
+                    <RetakeToggle
+                      checked={row.is_retake}
+                      onChange={(checked) => updateRow(row.id, { is_retake: checked })}
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-center align-top">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.id)}
+                      disabled={rows.length === 1}
+                      className="text-muted transition-colors hover:text-red-600 disabled:opacity-30"
+                      aria-label="حذف المادة"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
@@ -385,7 +472,7 @@ export default function GpaCalculator() {
         currentHours={results?.cumulativeHours ?? null}
       />
 
-      <GpaGradeScale />
+      <GpaGradeScale scaleRows={scaleRows} universityName={selectedUniversityName} />
 
       <GpaFaq />
     </div>
