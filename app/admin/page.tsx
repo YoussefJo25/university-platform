@@ -13,6 +13,7 @@ import ContentTree from "@/components/admin/ContentTree";
 import StatCard from "@/components/admin/StatCard";
 import StatCardSkeleton from "@/components/admin/StatCardSkeleton";
 import VisitsTimelineChart from "@/components/admin/VisitsTimelineChart";
+import QaModerationTab from "@/components/admin/QaModerationTab";
 import { BookOpen, Eye, TrendingUp, Users } from "lucide-react";
 import {
   Bar,
@@ -157,6 +158,7 @@ const SUPER_ADMIN_ONLY_TABS: TabKey[] = [
   "stats",
   "studentTime",
   "gradingScale",
+  "qa",
 ];
 
 type TabKey =
@@ -171,7 +173,8 @@ type TabKey =
   | "reports"
   | "stats"
   | "studentTime"
-  | "gradingScale";
+  | "gradingScale"
+  | "qa";
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: "universities", label: "الجامعات" },
@@ -186,6 +189,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "stats", label: "الإحصائيات" },
   { key: "studentTime", label: "وقت الطلاب" },
   { key: "gradingScale", label: "نظام تقييم الجامعة" },
+  { key: "qa", label: "إدارة الأسئلة" },
 ];
 
 const inputClasses =
@@ -646,6 +650,7 @@ export default function AdminPage() {
               {activeTab === "gradingScale" && (
                 <GradingScaleTab universities={universities} supabase={supabase} />
               )}
+              {activeTab === "qa" && <QaModerationTab supabase={supabase} />}
             </div>
           )}
         </div>

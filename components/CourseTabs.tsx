@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReportIssueButton from "@/components/ReportIssueButton";
 import PersonalNotes from "@/components/PersonalNotes";
+import VideoQA from "@/components/VideoQA";
 import { useVideoActivity } from "@/contexts/VideoActivityContext";
 
 declare global {
@@ -317,6 +318,10 @@ function VideoPlayer({
 
           <div className="mt-4">
             <PersonalNotes key={selectedVideo.id} contentType="video" contentId={selectedVideo.id} />
+          </div>
+
+          <div className="mt-4">
+            <VideoQA key={selectedVideo.id} videoId={selectedVideo.id} />
           </div>
         </div>
 
