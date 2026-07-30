@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Calculator, Plus, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import GpaTargetCalculator from "./GpaTargetCalculator";
+import GpaGradeScale from "./GpaGradeScale";
+import GpaFaq from "./GpaFaq";
 
 type GradeOption = "A" | "A-" | "B+" | "B" | "C" | "D" | "F";
 
@@ -35,17 +38,37 @@ type GpaRow = {
   course_name: string;
   credit_hours: number;
   grade: GradeOption;
+  is_retake: boolean;
+};
+
+type Results = {
+  termGpa: number;
+  termHours: number;
+  cumulativeGpa: number;
+  cumulativeHours: number;
 };
 
 function createEmptyRow(): GpaRow {
-  return { id: `temp-${crypto.randomUUID()}`, course_name: "", credit_hours: 3, grade: "B" };
+  return {
+    id: `temp-${crypto.randomUUID()}`,
+    course_name: "",
+    credit_hours: 3,
+    grade: "B",
+    is_retake: false,
+  };
 }
 
+const inputClasses =
+  "w-full rounded-lg border border-subtle bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-gold";
+
 export default function GpaCalculator() {
+  const [priorHours, setPriorHours] = useState(0);
+  const [priorCgpa, setPriorCgpa] = useState(0);
   const [rows, setRows] = useState<GpaRow[]>([createEmptyRow()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState(false);
+  const [results, setResults] = useState<Results | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -58,46 +81,81 @@ export default function GpaCalculator() {
         return;
       }
 
-      const { data } = await supabase
-        .from("gpa_entries")
-        .select("id, course_name, credit_hours, grade")
-        .eq("user_id", user.id)
-        .order("created_at");
+      const [{ data: profileRow }, { data: entryRows }] = await Promise.all([
+        supabase
+          .from("gpa_profile")
+          .select("prior_attempted_hours, prior_cgpa")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("gpa_entries")
+          .select("id, course_name, credit_hours, grade, is_retake")
+          .eq("user_id", user.id)
+          .order("created_at"),
+      ]);
 
-      if (data && data.length > 0) {
-        setRows(data as GpaRow[]);
+      if (profileRow) {
+        setPriorHours(profileRow.prior_attempted_hours);
+        setPriorCgpa(profileRow.prior_cgpa);
       }
+
+      if (entryRows && entryRows.length > 0) {
+        setRows(entryRows as GpaRow[]);
+      }
+
       setLoading(false);
     }
 
     load();
   }, []);
 
-  const { gpa, totalHours } = useMemo(() => {
-    let pointsSum = 0;
-    let hoursSum = 0;
-    for (const row of rows) {
-      const hours = Number(row.credit_hours) || 0;
-      if (hours <= 0) continue;
-      pointsSum += GRADE_POINTS[row.grade] * hours;
-      hoursSum += hours;
-    }
-    return { gpa: hoursSum > 0 ? pointsSum / hoursSum : 0, totalHours: hoursSum };
-  }, [rows]);
+  function clearResults() {
+    setResults(null);
+    setSavedMessage(false);
+  }
 
   function updateRow(id: string, patch: Partial<GpaRow>) {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
-    setSavedMessage(false);
+    clearResults();
   }
 
   function addRow() {
     setRows((prev) => [...prev, createEmptyRow()]);
-    setSavedMessage(false);
+    clearResults();
   }
 
   function removeRow(id: string) {
     setRows((prev) => (prev.length > 1 ? prev.filter((row) => row.id !== id) : prev));
-    setSavedMessage(false);
+    clearResults();
+  }
+
+  function handleCalculate() {
+    let termPoints = 0;
+    let termHours = 0;
+    // ساعات المواد "المعادة" منضافش هنا — مفروض محسوبة أصلاً جوا
+    // "إجمالي الساعات المقطوعة سابقاً"، فمنسيبهاش تتضاعف في الإجمالي
+    // التراكمي. درجتها الجديدة برضو بتدخل في نقاط الجودة زي أي مادة عادية.
+    let newCumulativeHours = 0;
+
+    for (const row of rows) {
+      const hours = Number(row.credit_hours) || 0;
+      if (hours <= 0) continue;
+      const points = GRADE_POINTS[row.grade];
+      termPoints += points * hours;
+      termHours += hours;
+      if (!row.is_retake) {
+        newCumulativeHours += hours;
+      }
+    }
+
+    const termGpa = termHours > 0 ? termPoints / termHours : 0;
+
+    const priorPoints = priorHours > 0 ? priorCgpa * priorHours : 0;
+    const cumulativeHours = priorHours + newCumulativeHours;
+    const cumulativePoints = priorPoints + termPoints;
+    const cumulativeGpa = cumulativeHours > 0 ? cumulativePoints / cumulativeHours : termGpa;
+
+    setResults({ termGpa, termHours, cumulativeGpa, cumulativeHours });
   }
 
   async function handleSave() {
@@ -113,6 +171,16 @@ export default function GpaCalculator() {
 
     const validRows = rows.filter((row) => row.course_name.trim() && row.credit_hours > 0);
 
+    await supabase.from("gpa_profile").upsert(
+      {
+        user_id: user.id,
+        prior_attempted_hours: priorHours,
+        prior_cgpa: priorCgpa,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    );
+
     // استبدال كامل بدل مقارنة صف بصف: بنمسح صفوف المستخدم القديمة كلها
     // ونضيف الحالة الحالية من جديد — الحاسبة دي "حسبة واحدة" بيرجعلها
     // المستخدم، مش سجل تاريخي لعدة حسبات، فمفيش داعي لمنطق diff أعقد.
@@ -125,6 +193,7 @@ export default function GpaCalculator() {
           course_name: row.course_name.trim(),
           credit_hours: row.credit_hours,
           grade: row.grade,
+          is_retake: row.is_retake,
         }))
       );
     }
@@ -139,20 +208,55 @@ export default function GpaCalculator() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <div className="flex flex-col items-center rounded-3xl border border-gold/25 bg-card px-6 py-10 text-center shadow-sm">
-        <p className="text-sm text-muted">المعدل التراكمي التقديري</p>
-        <p className="mt-2 text-6xl font-black text-gold tabular-nums">{gpa.toFixed(2)}</p>
-        <p className="mt-2 text-xs text-muted">من 4.0 — إجمالي {totalHours} ساعة معتمدة</p>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div className="rounded-2xl border border-subtle bg-card p-6 shadow-sm">
+        <h2 className="text-lg font-bold text-ink">السجل الأكاديمي السابق</h2>
+        <p className="mt-1 text-sm text-muted">
+          وضعك قبل الفصل الحالي، عشان ندمجه مع نتيجة الفصل ده في معدل تراكمي واحد
+        </p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink">
+              إجمالي الساعات المقطوعة سابقاً
+            </label>
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              value={priorHours}
+              onChange={(e) => {
+                setPriorHours(Math.max(0, Number(e.target.value)));
+                clearResults();
+              }}
+              className={inputClasses}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink">المعدل التراكمي السابق</label>
+            <input
+              type="number"
+              min={0}
+              max={4}
+              step={0.01}
+              value={priorCgpa}
+              onChange={(e) => {
+                setPriorCgpa(Math.max(0, Math.min(4, Number(e.target.value))));
+                clearResults();
+              }}
+              className={inputClasses}
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="mt-6 overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
-        <table className="w-full min-w-[560px] text-right text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-subtle bg-card shadow-sm">
+        <table className="w-full min-w-[680px] text-right text-sm">
           <thead>
             <tr className="border-b border-subtle text-xs text-muted">
               <th className="px-4 py-3 font-medium">اسم المادة</th>
               <th className="px-4 py-3 font-medium">الساعات المعتمدة</th>
               <th className="px-4 py-3 font-medium">الدرجة المتوقعة</th>
+              <th className="px-4 py-3 font-medium">معادة</th>
               <th className="px-4 py-3 font-medium" />
             </tr>
           </thead>
@@ -164,7 +268,7 @@ export default function GpaCalculator() {
                     value={row.course_name}
                     onChange={(e) => updateRow(row.id, { course_name: e.target.value })}
                     placeholder="اسم المادة"
-                    className="w-full rounded-lg border border-subtle bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-gold"
+                    className={inputClasses}
                   />
                 </td>
                 <td className="px-4 py-2">
@@ -176,14 +280,14 @@ export default function GpaCalculator() {
                     onChange={(e) =>
                       updateRow(row.id, { credit_hours: Math.max(0, Number(e.target.value)) })
                     }
-                    className="w-24 rounded-lg border border-subtle bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-gold"
+                    className={`w-24 ${inputClasses}`}
                   />
                 </td>
                 <td className="px-4 py-2">
                   <select
                     value={row.grade}
                     onChange={(e) => updateRow(row.id, { grade: e.target.value as GradeOption })}
-                    className="w-full rounded-lg border border-subtle bg-panel px-3 py-2 text-sm text-ink outline-none focus:border-gold"
+                    className={inputClasses}
                   >
                     {GRADE_OPTIONS.map((option) => (
                       <option key={option} value={option}>
@@ -191,6 +295,12 @@ export default function GpaCalculator() {
                       </option>
                     ))}
                   </select>
+                </td>
+                <td className="px-4 py-2 text-center">
+                  <RetakeToggle
+                    checked={row.is_retake}
+                    onChange={(checked) => updateRow(row.id, { is_retake: checked })}
+                  />
                 </td>
                 <td className="px-2 py-2 text-center">
                   <button
@@ -220,17 +330,77 @@ export default function GpaCalculator() {
         </div>
       </div>
 
-      <div className="mt-6 flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={handleCalculate}
+          className="flex items-center gap-2 rounded-full bg-gold px-6 py-2.5 text-sm font-semibold text-gold-ink shadow-sm transition-transform hover:scale-105"
+        >
+          <Calculator className="h-4 w-4" aria-hidden="true" />
+          احسب النتائج 🧮
+        </button>
+
         <button
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-full bg-gold px-6 py-2.5 text-sm font-semibold text-gold-ink shadow-sm transition-transform hover:scale-105 disabled:opacity-60"
+          className="rounded-full border border-gold/40 px-6 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-gold hover:text-gold-light disabled:opacity-60"
         >
           {saving ? "جارٍ الحفظ..." : "حفظ الحسبة"}
         </button>
         {savedMessage && <span className="text-sm text-emerald-500">تم الحفظ ✓</span>}
       </div>
+
+      {results && (
+        <div className="grid gap-4 rounded-3xl border border-gold/25 bg-card p-6 shadow-sm sm:grid-cols-2">
+          <div className="text-center">
+            <p className="text-sm text-muted">معدل الفصل الحالي (GPA)</p>
+            <p className="mt-2 text-4xl font-black text-ink tabular-nums">
+              {results.termGpa.toFixed(2)}
+            </p>
+            <p className="mt-1 text-xs text-muted">{results.termHours} ساعة هذا الفصل</p>
+          </div>
+          <div className="border-t border-subtle pt-4 text-center sm:border-t-0 sm:border-r sm:pt-0 sm:pr-4">
+            <p className="text-sm text-muted">المعدل التراكمي الكلي (CGPA)</p>
+            <p className="mt-2 text-4xl font-black text-gold tabular-nums">
+              {results.cumulativeGpa.toFixed(2)}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              إجمالي {results.cumulativeHours} ساعة تراكمية
+            </p>
+          </div>
+        </div>
+      )}
+
+      <GpaTargetCalculator
+        currentCgpa={results?.cumulativeGpa ?? null}
+        currentHours={results?.cumulativeHours ?? null}
+      />
+
+      <GpaGradeScale />
+
+      <GpaFaq />
     </div>
+  );
+}
+
+function RetakeToggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label="معادة"
+      onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+        checked ? "bg-gold" : "bg-subtle"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0"
+        }`}
+      />
+    </button>
   );
 }
