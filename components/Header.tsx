@@ -20,6 +20,7 @@ const baseNavLinks = [
 const studyToolsLinks = [
   { href: "/study-tools/pomodoro", label: "تايمر البومودورو" },
   { href: "/study-tools/tasks", label: "التاسكات" },
+  { href: "/study-tools/schedule", label: "جدول المحاضرات" },
   { href: "/gpa-calculator", label: "حاسبة تقدير المعدل" },
 ];
 

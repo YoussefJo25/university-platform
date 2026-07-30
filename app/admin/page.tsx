@@ -14,6 +14,7 @@ import StatCard from "@/components/admin/StatCard";
 import StatCardSkeleton from "@/components/admin/StatCardSkeleton";
 import VisitsTimelineChart from "@/components/admin/VisitsTimelineChart";
 import QaModerationTab from "@/components/admin/QaModerationTab";
+import ScheduleTab from "@/components/admin/ScheduleTab";
 import { BookOpen, Eye, TrendingUp, Users } from "lucide-react";
 import {
   Bar,
@@ -167,6 +168,7 @@ type TabKey =
   | "courses"
   | "books"
   | "playlists"
+  | "schedule"
   | "settings"
   | "leadership"
   | "auditLog"
@@ -182,6 +184,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: "courses", label: "المواد" },
   { key: "books", label: "الكتب" },
   { key: "playlists", label: "الفيديوهات" },
+  { key: "schedule", label: "جدول المحاضرات" },
   { key: "settings", label: "إعدادات الموقع" },
   { key: "leadership", label: "القيادة" },
   { key: "auditLog", label: "سجل النشاط" },
@@ -509,7 +512,10 @@ export default function AdminPage() {
       <section className="flex-1 bg-canvas px-4 py-12 sm:px-6">
         <div
           className={`mx-auto ${
-            activeTab === "courses" || activeTab === "books" || activeTab === "playlists"
+            activeTab === "courses" ||
+            activeTab === "books" ||
+            activeTab === "playlists" ||
+            activeTab === "schedule"
               ? "max-w-6xl"
               : "max-w-4xl"
           }`}
@@ -620,6 +626,9 @@ export default function AdminPage() {
                   supabase={supabase}
                   onChange={loadAll}
                 />
+              )}
+              {activeTab === "schedule" && (
+                <ScheduleTab universities={visibleUniversities} years={visibleYears} supabase={supabase} />
               )}
               {activeTab === "settings" && (
                 <SettingsTab settings={settings} supabase={supabase} onChange={loadAll} />
