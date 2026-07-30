@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "@/components/ProfileForm";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
 import AchievementsSection from "@/components/AchievementsSection";
+import DailyAchievementCard from "@/components/DailyAchievementCard";
 import { roleLabel } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +99,8 @@ export default async function ProfilePage() {
           </div>
 
           <AchievementsSection userId={user.id} />
+
+          <DailyAchievementCard />
 
           <ProfileForm
             fullName={profile?.full_name ?? ""}
