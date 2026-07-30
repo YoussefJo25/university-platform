@@ -2821,11 +2821,14 @@ function CoursesTab({
           payload.category === "learning_path"
             ? `تمت إضافة قسم/مادة جديد في مسار تعلم البرمجة: ${payload.name}`
             : `تمت إضافة مادة جديدة: ${payload.name}`;
-        void supabase.rpc("broadcast_notification", {
+        const { error: broadcastError } = await supabase.rpc("broadcast_notification", {
           p_type: "new_content",
           p_title: title,
           p_link_url: `/courses/${data.id}`,
         });
+        if (broadcastError) {
+          console.error("broadcast_notification (course) failed:", broadcastError);
+        }
       }
       // بنسيب نوع المحتوى والقسم الأب (أو الجامعة/الفرقة/الترم) زي ما هما
       // عشان يقدر يضيف كذا مادة ورا بعض في نفس المكان (زي HTML وCSS
@@ -3909,11 +3912,14 @@ function BookUploadForm({
     }
 
     if (data) {
-      void supabase.rpc("broadcast_notification", {
+      const { error: broadcastError } = await supabase.rpc("broadcast_notification", {
         p_type: "new_content",
         p_title: `تمت إضافة كتاب جديد: ${title}`,
         p_link_url: `/courses/${folder.course_id}`,
       });
+      if (broadcastError) {
+        console.error("broadcast_notification (book) failed:", broadcastError);
+      }
     }
 
     setTitle("");
@@ -4116,11 +4122,14 @@ function PlaylistsTab({
 
     if (!error) {
       if (data) {
-        void supabase.rpc("broadcast_notification", {
+        const { error: broadcastError } = await supabase.rpc("broadcast_notification", {
           p_type: "new_content",
           p_title: `تمت إضافة فيديو جديد: ${payload.title}`,
           p_link_url: `/courses/${payload.course_id}`,
         });
+        if (broadcastError) {
+          console.error("broadcast_notification (playlist) failed:", broadcastError);
+        }
       }
       resetForm();
       onChange();
