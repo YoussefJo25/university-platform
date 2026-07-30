@@ -4,6 +4,8 @@ import GradientButton from "@/components/GradientButton";
 import ScrollReveal from "@/components/ScrollReveal";
 import CompassSignature from "@/components/home/CompassSignature";
 import RealContentShowcase, { type CoursePreview } from "@/components/home/RealContentShowcase";
+import MissionSection from "@/components/home/MissionSection";
+import TracksSection from "@/components/home/TracksSection";
 import StudentJourney from "@/components/home/StudentJourney";
 import DedicationSection from "@/components/home/DedicationSection";
 import PublicStatsBar from "@/components/home/PublicStatsBar";
@@ -32,7 +34,7 @@ export default async function Home() {
       .from("public_course_previews")
       .select("id, name, category, view_count, video_count, context_label")
       .order("view_count", { ascending: false })
-      .limit(3),
+      .limit(50),
     supabase.rpc("get_public_platform_stats").single(),
   ]);
 
@@ -43,7 +45,14 @@ export default async function Home() {
     { title: settings.journey_station_4_title, subtitle: settings.journey_station_4_sub },
   ];
 
-  const coursePreviews = (coursePreviewsRes.data ?? []) as CoursePreview[];
+  const allCoursePreviews = (coursePreviewsRes.data ?? []) as CoursePreview[];
+  const coursePreviews = allCoursePreviews.slice(0, 3);
+  const universityTrackPreviews = allCoursePreviews
+    .filter((c) => c.category === "academic")
+    .slice(0, 3);
+  const programmingTrackPreviews = allCoursePreviews
+    .filter((c) => c.category === "learning_path")
+    .slice(0, 3);
   const publicStats = publicStatsRes.data as {
     total_views: number;
     total_students: number;
@@ -145,6 +154,13 @@ export default async function Home() {
         </div>
       </section>
       </ScrollReveal>
+
+      <MissionSection />
+
+      <TracksSection
+        universityPreviews={universityTrackPreviews}
+        programmingPreviews={programmingTrackPreviews}
+      />
 
       <RealContentShowcase courses={coursePreviews} />
 

@@ -106,6 +106,23 @@ body {
   }
 }
 
+/* Panel قسم "مسارين، هدف واحد" — بيتعمل remount (key={activeTab}) كل ما
+   الـ tab يتغيّر، فالـ animation دي بتشتغل من جديد تلقائيًا كل مرة. */
+.track-panel-enter {
+  animation: track-panel-in 350ms ease-out;
+}
+
+@keyframes track-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .scroll-reveal {
     opacity: 1;
@@ -113,6 +130,9 @@ body {
     transition: none;
   }
   .compass-needle {
+    animation: none;
+  }
+  .track-panel-enter {
     animation: none;
   }
 }
