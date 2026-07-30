@@ -38,8 +38,6 @@ const PHASE_STATUS_TEXT: Record<Phase, string> = {
   long_break: "استراحة أطول — استحقيتها بعد 4 جلسات تركيز",
 };
 
-const TODAY_SESSIONS_KEY = "pomodoro_today_sessions";
-
 function getPhaseDurationMinutes(phase: Phase, settings: PomodoroSettings): number {
   if (phase === "focus") return settings.focusMinutes;
   if (phase === "short_break") return settings.shortBreakMinutes;
@@ -54,27 +52,6 @@ function formatTime(totalSeconds: number): string {
 
 function todayISODate(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-// عدد جلسات التركيز الحقيقية المكتملة النهاردة — متتبّع محلي (localStorage)
-// لكل جهاز، مش من قاعدة البيانات، لأن السكيما المطلوبة في البرومبت بتسجّل
-// دقائق البومودورو بس (pomodoro_minutes) من غير عمود لعدد الجلسات. القيمة
-// دي بتتصفّر تلقائيًا أول ما التاريخ يتغيّر.
-function readTodaySessionCount(): number {
-  try {
-    const raw = window.localStorage.getItem(TODAY_SESSIONS_KEY);
-    if (!raw) return 0;
-    const parsed = JSON.parse(raw) as { date: string; count: number };
-    return parsed.date === todayISODate() ? parsed.count : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function bumpTodaySessionCount(): number {
-  const next = readTodaySessionCount() + 1;
-  window.localStorage.setItem(TODAY_SESSIONS_KEY, JSON.stringify({ date: todayISODate(), count: next }));
-  return next;
 }
 
 function playAlarmSound(volumePercent: number) {
@@ -162,17 +139,17 @@ export default function PomodoroTimer() {
       setSettings(loadedSettings);
       setSecondsLeft(loadedSettings.focusMinutes * 60);
       setSettingsLoaded(true);
-      setTodaySessions(readTodaySessionCount());
 
       const { data: activityRows } = await supabase
         .from("daily_activity")
-        .select("activity_date, pomodoro_minutes");
+        .select("activity_date, pomodoro_minutes, sessions_count");
 
       if (activityRows) {
         const total = activityRows.reduce((sum, row) => sum + (row.pomodoro_minutes || 0), 0);
         const todayRow = activityRows.find((row) => row.activity_date === todayISODate());
         setTotalMinutes(total);
         setTodayMinutes(todayRow?.pomodoro_minutes ?? 0);
+        setTodaySessions(todayRow?.sessions_count ?? 0);
       }
     }
 
@@ -187,9 +164,12 @@ export default function PomodoroTimer() {
   async function recordFocusMinutes(minutes: number) {
     const supabase = createClient();
     await supabase.rpc("record_pomodoro_minutes", { minutes_count: minutes });
+    // تحديث متفائل محلي (optimistic) — الرقم الحقيقي مخزّن فعليًا في
+    // daily_activity.sessions_count عبر الـ RPC، وهيترجع صح تاني بعد أي
+    // refresh من الاستعلام في useEffect فوق.
     setTodayMinutes((m) => m + minutes);
     setTotalMinutes((m) => m + minutes);
-    setTodaySessions(bumpTodaySessionCount());
+    setTodaySessions((s) => s + 1);
   }
 
   function switchToPhase(nextPhase: Phase, autoRun: boolean) {
