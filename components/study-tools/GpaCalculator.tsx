@@ -7,16 +7,19 @@ import GpaTargetCalculator from "./GpaTargetCalculator";
 import GpaGradeScale from "./GpaGradeScale";
 import GpaFaq from "./GpaFaq";
 
-type GradeOption = "A" | "A-" | "B+" | "B" | "C" | "D" | "F";
+type GradeOption = "A" | "A-" | "B+" | "B" | "C+" | "C" | "C-" | "D+" | "D" | "F";
 
-// نظام نقاط قياسي شائع الاستخدام في الجامعات المصرية (من 4.0) — مذكور
-// بالنص في البرومبت نفسه.
+// نظام نقاط قياسي شائع الاستخدام في الجامعات المصرية (من 4.0)، بمقياس
+// 10 درجات كامل.
 const GRADE_POINTS: Record<GradeOption, number> = {
   A: 4.0,
   "A-": 3.7,
   "B+": 3.3,
   B: 3.0,
+  "C+": 2.3,
   C: 2.0,
+  "C-": 1.7,
+  "D+": 1.3,
   D: 1.0,
   F: 0.0,
 };
@@ -26,7 +29,10 @@ const GRADE_LABELS: Record<GradeOption, string> = {
   "A-": "جيد جداً مرتفع",
   "B+": "جيد جداً",
   B: "جيد",
+  "C+": "مقبول مرتفع",
   C: "مقبول",
+  "C-": "مقبول منخفض",
+  "D+": "ضعيف مرتفع",
   D: "ضعيف",
   F: "راسب",
 };
@@ -352,21 +358,23 @@ export default function GpaCalculator() {
       </div>
 
       {results && (
-        <div className="grid gap-4 rounded-3xl border border-gold/25 bg-card p-6 shadow-sm sm:grid-cols-2">
-          <div className="text-center">
-            <p className="text-sm text-muted">معدل الفصل الحالي (GPA)</p>
+        <div className="grid grid-cols-1 divide-y divide-subtle overflow-hidden rounded-2xl border border-gold/25 bg-card text-center shadow-sm sm:grid-cols-3 sm:divide-x sm:divide-y-0 rtl:sm:divide-x-reverse">
+          <div className="px-4 py-6">
+            <p className="text-sm text-muted">إجمالي الساعات الكلية</p>
             <p className="mt-2 text-4xl font-black text-ink tabular-nums">
-              {results.termGpa.toFixed(2)}
+              {results.cumulativeHours}
             </p>
-            <p className="mt-1 text-xs text-muted">{results.termHours} ساعة هذا الفصل</p>
           </div>
-          <div className="border-t border-subtle pt-4 text-center sm:border-t-0 sm:border-r sm:pt-0 sm:pr-4">
+          <div className="px-4 py-6">
             <p className="text-sm text-muted">المعدل التراكمي الكلي (CGPA)</p>
             <p className="mt-2 text-4xl font-black text-gold tabular-nums">
               {results.cumulativeGpa.toFixed(2)}
             </p>
-            <p className="mt-1 text-xs text-muted">
-              إجمالي {results.cumulativeHours} ساعة تراكمية
+          </div>
+          <div className="px-4 py-6">
+            <p className="text-sm text-muted">معدل الفصل الدراسي (GPA)</p>
+            <p className="mt-2 text-4xl font-black text-ink tabular-nums">
+              {results.termGpa.toFixed(2)}
             </p>
           </div>
         </div>
