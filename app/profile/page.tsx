@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import ProfileForm from "@/components/ProfileForm";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
+import AchievementsSection from "@/components/AchievementsSection";
 import { roleLabel } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +96,8 @@ export default async function ProfilePage() {
               )}
             </dl>
           </div>
+
+          <AchievementsSection userId={user.id} />
 
           <ProfileForm
             fullName={profile?.full_name ?? ""}
