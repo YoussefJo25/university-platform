@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getDisplayName } from "@/lib/displayName";
 import { isStaffRole } from "@/lib/roles";
+import { useClickOutside } from "@/hooks/useClickOutside";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const baseNavLinks = [
@@ -13,6 +14,11 @@ const baseNavLinks = [
   { href: "/universities", label: "مسار الجامعات" },
   { href: "/learning-path", label: "مسار تعلم البرمجة" },
   { href: "/compiler", label: "الكمبايلر" },
+];
+
+const studyToolsLinks = [
+  { href: "/study-tools/pomodoro", label: "تايمر البومودورو" },
+  { href: "/study-tools/tasks", label: "التاسكات" },
 ];
 
 type HeaderProps = {
@@ -27,6 +33,11 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [hasNoUniversity, setHasNoUniversity] = useState(false);
+  const [isStudyToolsOpen, setIsStudyToolsOpen] = useState(false);
+  const [isMobileStudyToolsOpen, setIsMobileStudyToolsOpen] = useState(false);
+  const studyToolsRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(studyToolsRef, () => setIsStudyToolsOpen(false));
 
   useEffect(() => {
     async function loadUser() {
@@ -131,6 +142,43 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
             renderNavLink(link, "text-sm font-medium text-muted transition-colors hover:text-ink")
           )}
 
+          <div ref={studyToolsRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setIsStudyToolsOpen((prev) => !prev)}
+              aria-expanded={isStudyToolsOpen}
+              className="flex items-center gap-1 text-sm font-medium text-muted transition-colors hover:text-ink"
+            >
+              أدوات المذاكرة
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className={`h-3.5 w-3.5 transition-transform ${isStudyToolsOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+
+            {isStudyToolsOpen && (
+              <div className="absolute top-full right-0 mt-2 w-48 rounded-xl border border-gold/25 bg-card p-1.5 shadow-lg">
+                {studyToolsLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setIsStudyToolsOpen(false)}
+                    className="block rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-panel hover:text-ink"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
           <ThemeToggle />
         </nav>
 
@@ -214,6 +262,45 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
               () => setIsMenuOpen(false)
             )
           )}
+
+          <div>
+            <button
+              type="button"
+              onClick={() => setIsMobileStudyToolsOpen((prev) => !prev)}
+              aria-expanded={isMobileStudyToolsOpen}
+              className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-ink"
+            >
+              أدوات المذاكرة
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                className={`h-3.5 w-3.5 transition-transform ${isMobileStudyToolsOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+            {isMobileStudyToolsOpen && (
+              <div className="flex flex-col gap-1 py-1 pr-4">
+                {studyToolsLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      setIsMobileStudyToolsOpen(false);
+                    }}
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-card hover:text-ink"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
           {email ? (
             <>
