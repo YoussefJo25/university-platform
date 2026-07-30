@@ -2,12 +2,12 @@
 
 import { useEffect, useRef } from "react";
 
-// عنصر بصري تفاعلي (بوصلة/أسطرلاب) — الإبرة بتتبع حركة الماوس داخل حدود
-// القسم كله (مش بس مساحة الـ SVG نفسها)، لأن الـ wrapper هنا بيتمدد
-// بالكامل فوق القسم (`absolute inset-0`) عن طريق الأب اللي بيستدعي
-// الكومبوننت ده جوا `position: relative`. الزاوية بتتحسب بين مركز
-// القسم (اللي بيساوي مركز الـ wrapper هنا لأنه بنفس حجم القسم) وموضع
-// الماوس عبر Math.atan2.
+// عنصر بصري تفاعلي (بوصلة/أسطرلاب) — عنصر عادي في الـ flow (مش absolute
+// فوق نص التاب)، بحجم ثابت محدود (120px على الموبايل، 160px على
+// الديسكتوب) وmargin-bottom واضح قبل العنوان، عشان يبقى مفيش أي تراكب مع
+// نص الهيرو تحته في أي حجم شاشة. الإبرة بتتبع حركة الماوس داخل حدود
+// البوصلة نفسها بس (مش القسم كله) — الزاوية بتتحسب بين مركز صندوق
+// البوصلة وموضع الماوس عبر Math.atan2.
 //
 // على الأجهزة اللي مفيهاش ماوس حقيقي (`hover: none`)، بنستبدل التتبع
 // بتمايل تلقائي بسيط (كلاس CSS + keyframes في globals.css) بدل ما نسيب
@@ -48,45 +48,48 @@ export default function CompassSignature() {
   }, []);
 
   return (
-    <div ref={containerRef} className="pointer-events-auto absolute inset-0" aria-hidden="true">
-      <div className="absolute top-1/2 left-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 sm:h-72 sm:w-72">
-        <svg viewBox="0 0 200 200" className="h-full w-full">
-          <circle cx="100" cy="100" r="92" fill="none" stroke="var(--gold)" strokeOpacity="0.25" strokeWidth="1" />
-          <circle cx="100" cy="100" r="72" fill="none" stroke="var(--gold)" strokeOpacity="0.15" strokeWidth="1" />
+    <div
+      ref={containerRef}
+      data-testid="compass-signature"
+      className="relative z-0 mx-auto mb-8 h-[120px] w-[120px] sm:h-40 sm:w-40"
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 200 200" className="h-full w-full">
+        <circle cx="100" cy="100" r="92" fill="none" stroke="var(--gold)" strokeOpacity="0.25" strokeWidth="1" />
+        <circle cx="100" cy="100" r="72" fill="none" stroke="var(--gold)" strokeOpacity="0.15" strokeWidth="1" />
 
-          {Array.from({ length: 8 }).map((_, i) => {
-            const angle = (i * 45 * Math.PI) / 180;
-            const outer = 92;
-            const inner = i % 2 === 0 ? 76 : 84;
-            const x1 = 100 + Math.sin(angle) * outer;
-            const y1 = 100 - Math.cos(angle) * outer;
-            const x2 = 100 + Math.sin(angle) * inner;
-            const y2 = 100 - Math.cos(angle) * inner;
-            return (
-              <line
-                key={i}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke="var(--gold)"
-                strokeOpacity="0.4"
-                strokeWidth="1.5"
-              />
-            );
-          })}
+        {Array.from({ length: 8 }).map((_, i) => {
+          const angle = (i * 45 * Math.PI) / 180;
+          const outer = 92;
+          const inner = i % 2 === 0 ? 76 : 84;
+          const x1 = 100 + Math.sin(angle) * outer;
+          const y1 = 100 - Math.cos(angle) * outer;
+          const x2 = 100 + Math.sin(angle) * inner;
+          const y2 = 100 - Math.cos(angle) * inner;
+          return (
+            <line
+              key={i}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke="var(--gold)"
+              strokeOpacity="0.4"
+              strokeWidth="1.5"
+            />
+          );
+        })}
 
-          <g
-            ref={needleRef}
-            className="compass-needle"
-            style={{ transformOrigin: "100px 100px", transition: "transform 0.4s ease-out" }}
-          >
-            <polygon points="100,24 110,100 100,108 90,100" fill="var(--gold-light)" />
-            <polygon points="100,176 90,100 100,92 110,100" fill="var(--muted)" />
-            <circle cx="100" cy="100" r="6" fill="var(--gold-light)" stroke="var(--canvas)" strokeWidth="1.5" />
-          </g>
-        </svg>
-      </div>
+        <g
+          ref={needleRef}
+          className="compass-needle"
+          style={{ transformOrigin: "100px 100px", transition: "transform 0.4s ease-out" }}
+        >
+          <polygon points="100,24 110,100 100,108 90,100" fill="var(--gold-light)" />
+          <polygon points="100,176 90,100 100,92 110,100" fill="var(--muted)" />
+          <circle cx="100" cy="100" r="6" fill="var(--gold-light)" stroke="var(--canvas)" strokeWidth="1.5" />
+        </g>
+      </svg>
     </div>
   );
 }

@@ -114,9 +114,9 @@ export default async function Home() {
   return (
     <div className="flex flex-1 flex-col">
       <ScrollReveal>
-      <section className="relative overflow-hidden border-b border-subtle bg-panel px-4 py-24 text-center sm:px-6">
-        <CompassSignature />
-        <div className="relative mx-auto max-w-3xl">
+      <section className="border-b border-subtle bg-panel px-4 py-24 text-center sm:px-6">
+        <div className="mx-auto flex max-w-3xl flex-col items-center">
+          <CompassSignature />
           <span className="inline-flex items-center gap-2 rounded-full border border-gold/50 bg-canvas/40 px-4 py-1.5 text-xs font-semibold tracking-wide text-gold">
             <span className="h-1.5 w-1.5 rounded-full bg-gold" />
             المنصة الإلكترونية الرسمية
