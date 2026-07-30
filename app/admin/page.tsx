@@ -2810,13 +2810,23 @@ function CoursesTab({
     event.preventDefault();
     setAddSaving(true);
 
-    const { error } = await supabase
-      .from("courses")
-      .insert(buildPayload(addForm, addIsAcademic));
+    const payload = buildPayload(addForm, addIsAcademic);
+    const { data, error } = await supabase.from("courses").insert(payload).select("id").single();
 
     setAddSaving(false);
 
     if (!error) {
+      if (data) {
+        const title =
+          payload.category === "learning_path"
+            ? `تمت إضافة قسم/مادة جديد في مسار تعلم البرمجة: ${payload.name}`
+            : `تمت إضافة مادة جديدة: ${payload.name}`;
+        void supabase.rpc("broadcast_notification", {
+          p_type: "new_content",
+          p_title: title,
+          p_link_url: `/courses/${data.id}`,
+        });
+      }
       // بنسيب نوع المحتوى والقسم الأب (أو الجامعة/الفرقة/الترم) زي ما هما
       // عشان يقدر يضيف كذا مادة ورا بعض في نفس المكان (زي HTML وCSS
       // وJavaScript جوه Front_End) من غير ما يعيد الاختيار كل مرة.
@@ -3878,13 +3888,17 @@ function BookUploadForm({
     // folder.course_id جاي من الـ prop (الفولدر المختار حاليًا)، مش من أي
     // متغيّر تاني — وحتى لو تغيّر اختيار المادة في الشجرة، الفولدر ده
     // (وبالتالي المادة اللي هيتربط بيها الكتاب) ثابت طول عملية الرفع.
-    const { error } = await supabase.from("books").insert({
-      title,
-      author: author || null,
-      file_url: fileUrl,
-      course_id: folder.course_id,
-      folder_id: folder.id,
-    });
+    const { data, error } = await supabase
+      .from("books")
+      .insert({
+        title,
+        author: author || null,
+        file_url: fileUrl,
+        course_id: folder.course_id,
+        folder_id: folder.id,
+      })
+      .select("id")
+      .single();
 
     setSaving(false);
     onSavingChange(false);
@@ -3892,6 +3906,14 @@ function BookUploadForm({
     if (error) {
       setFormError(`فشل حفظ الملف: ${error.message}`);
       return;
+    }
+
+    if (data) {
+      void supabase.rpc("broadcast_notification", {
+        p_type: "new_content",
+        p_title: `تمت إضافة كتاب جديد: ${title}`,
+        p_link_url: `/courses/${folder.course_id}`,
+      });
     }
 
     setTitle("");
@@ -4079,13 +4101,27 @@ function PlaylistsTab({
       group_name: form.group_name.trim() || null,
     };
 
-    const { error } = editingId
-      ? await supabase.from("playlists").update(payload).eq("id", editingId)
-      : await supabase.from("playlists").insert(payload);
+    if (editingId) {
+      const { error } = await supabase.from("playlists").update(payload).eq("id", editingId);
+      setSaving(false);
+      if (!error) {
+        resetForm();
+        onChange();
+      }
+      return;
+    }
 
+    const { data, error } = await supabase.from("playlists").insert(payload).select("id").single();
     setSaving(false);
 
     if (!error) {
+      if (data) {
+        void supabase.rpc("broadcast_notification", {
+          p_type: "new_content",
+          p_title: `تمت إضافة فيديو جديد: ${payload.title}`,
+          p_link_url: `/courses/${payload.course_id}`,
+        });
+      }
       resetForm();
       onChange();
     }

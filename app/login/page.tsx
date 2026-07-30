@@ -123,6 +123,12 @@ export default function LoginPage() {
       return;
     }
 
+    if (isLogin) {
+      // بيتحسب وقت تسجيل الدخول فعليًا (مش مهمة مجدولة خلفية) — الدالة
+      // نفسها بتتجاهل الحسابات اللي مالهاش نشاط قبل كده أصلاً (حساب جديد).
+      await supabase.rpc("check_inactivity_reminder");
+    }
+
     // تنقل كامل (Hard Navigation) بدل router.push/refresh: لازم نضمن إن
     // الطلب الجاي للسيرفر (وproxy.ts اللي بيتحقق من الجلسة) شايف الكوكيز
     // الجديدة اللي supabase-js لسه بيكتبها. التنقل الداخلي بتاع Next ممكن

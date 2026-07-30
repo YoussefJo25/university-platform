@@ -8,6 +8,7 @@ import { getDisplayName } from "@/lib/displayName";
 import { isStaffRole } from "@/lib/roles";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import ThemeToggle from "@/components/ThemeToggle";
+import NotificationBell from "@/components/NotificationBell";
 
 const baseNavLinks = [
   { href: "/", label: "الرئيسية" },
@@ -180,6 +181,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
             )}
           </div>
 
+          {email && <NotificationBell />}
           <ThemeToggle />
         </nav>
 
@@ -228,6 +230,7 @@ export default function Header({ universityName, logoUrl }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
+          {email && <NotificationBell />}
           <ThemeToggle />
           <button
             type="button"
