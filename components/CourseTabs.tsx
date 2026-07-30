@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ReportIssueButton from "@/components/ReportIssueButton";
+import PersonalNotes from "@/components/PersonalNotes";
 import { useVideoActivity } from "@/contexts/VideoActivityContext";
 
 declare global {
@@ -313,6 +314,10 @@ function VideoPlayer({
               itemTitle={selectedVideo.title}
             />
           </div>
+
+          <div className="mt-4">
+            <PersonalNotes key={selectedVideo.id} contentType="video" contentId={selectedVideo.id} />
+          </div>
         </div>
 
         {selectedGroup.videos.length > 1 && (
@@ -457,33 +462,50 @@ function BookFolderAccordion({
           ) : (
             <ul className="flex flex-col gap-3">
               {books.map((book) => (
-                <li
-                  key={book.id}
-                  className="flex flex-col gap-3 rounded-xl border border-subtle bg-card p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="font-semibold text-ink">{book.title}</p>
-                    {book.author && <p className="text-sm text-muted">{book.author}</p>}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <ReportIssueButton courseId={courseId} itemType="book" itemTitle={book.title} />
-                    {book.file_url && (
-                      <a
-                        href={book.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm transition-transform hover:scale-105"
-                      >
-                        تحميل الكتاب
-                      </a>
-                    )}
-                  </div>
-                </li>
+                <BookListItem key={book.id} courseId={courseId} book={book} />
               ))}
             </ul>
           )}
         </div>
       )}
     </div>
+  );
+}
+
+function BookListItem({ courseId, book }: { courseId: number; book: BookRow }) {
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
+
+  return (
+    <li className="flex flex-col gap-3 rounded-xl border border-subtle bg-card p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-semibold text-ink">{book.title}</p>
+          {book.author && <p className="text-sm text-muted">{book.author}</p>}
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsNotesOpen((prev) => !prev)}
+            aria-expanded={isNotesOpen}
+            className="text-sm font-medium text-gold hover:underline"
+          >
+            ملاحظاتي
+          </button>
+          <ReportIssueButton courseId={courseId} itemType="book" itemTitle={book.title} />
+          {book.file_url && (
+            <a
+              href={book.file_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm transition-transform hover:scale-105"
+            >
+              تحميل الكتاب
+            </a>
+          )}
+        </div>
+      </div>
+
+      {isNotesOpen && <PersonalNotes contentType="book" contentId={String(book.id)} />}
+    </li>
   );
 }
