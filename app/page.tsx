@@ -3,6 +3,7 @@ import Link from "next/link";
 import GradientButton from "@/components/GradientButton";
 import ScrollReveal from "@/components/ScrollReveal";
 import CompassSignature from "@/components/home/CompassSignature";
+import CompassOfTheDay from "@/components/CompassOfTheDay";
 import RealContentShowcase, { type CoursePreview } from "@/components/home/RealContentShowcase";
 import MissionSection from "@/components/home/MissionSection";
 import TracksSection from "@/components/home/TracksSection";
@@ -122,6 +123,12 @@ export default async function Home() {
 
   return (
     <div className="flex flex-1 flex-col">
+      {user && (
+        <div className="bg-canvas px-4 pt-6 sm:px-6">
+          <CompassOfTheDay />
+        </div>
+      )}
+
       <ScrollReveal>
       <section className="border-b border-subtle bg-panel px-4 py-24 text-center sm:px-6">
         <div className="mx-auto flex max-w-3xl flex-col items-center">

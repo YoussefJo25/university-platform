@@ -4,6 +4,8 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import ActivityHeartbeat from "@/components/ActivityHeartbeat";
+import WhatsappWelcomeModal from "@/components/WhatsappWelcomeModal";
+import WhatsappBanner from "@/components/WhatsappBanner";
 import CustomCursor from "@/components/CustomCursor";
 import { VideoActivityProvider } from "@/contexts/VideoActivityContext";
 import { getSiteSettings } from "@/lib/siteSettings";
@@ -75,6 +77,8 @@ export default async function RootLayout({
           <ActivityHeartbeat />
           <CustomCursor />
           <Header universityName={settings.university_name} logoUrl={settings.logo_url} />
+          <WhatsappBanner />
+          <WhatsappWelcomeModal />
           <main className="flex flex-1 flex-col">{children}</main>
           <Footer settings={settings} />
           <WhatsAppButton whatsappNumber={settings.whatsapp_number} />

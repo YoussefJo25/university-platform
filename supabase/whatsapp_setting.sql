@@ -7,3 +7,4 @@
 insert into site_settings (key, value) values
   ('whatsapp_number', '')
 on conflict (key) do nothing;
+اب

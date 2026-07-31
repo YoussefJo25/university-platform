@@ -116,6 +116,7 @@ type ProfileRow = {
   is_active: boolean;
   gender: string | null;
   other_university_name: string | null;
+  whatsapp_link_sent: boolean;
 };
 type YearManagerRow = {
   id: number;
@@ -300,6 +301,37 @@ export default function AdminPage() {
     return withOrder;
   }
 
+  async function fetchProfiles() {
+    const full = await supabase
+      .from("profiles")
+      .select(
+        "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender, other_university_name, whatsapp_link_sent"
+      )
+      .order("created_at");
+
+    if (!full.error) return full;
+
+    // whatsapp_link_sent ممكن يكون لسه معملوش migration
+    // (whatsapp_link_tracking_setup.sql) — نرجع لاستعلام بدونه عشان باقي
+    // التابات اللي بتعتمد على profiles (المستخدمين، الإحصائيات، وقت
+    // الطلاب) مايتوقفوش بالكامل.
+    const withoutWhatsapp = await supabase
+      .from("profiles")
+      .select(
+        "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender, other_university_name"
+      )
+      .order("created_at");
+
+    if (!withoutWhatsapp.error) {
+      return {
+        ...withoutWhatsapp,
+        data: (withoutWhatsapp.data ?? []).map((p) => ({ ...p, whatsapp_link_sent: false })),
+      };
+    }
+
+    return full;
+  }
+
   async function fetchPlaylists() {
     const full = await supabase
       .from("playlists")
@@ -372,12 +404,7 @@ export default function AdminPage() {
         .order("order_index"),
       // profiles/year_managers محكومين بـ RLS: year_admin/student بيرجعله
       // صفوفه هو بس، super_admin بيرجعله كل الصفوف — نفس الاستعلام للكل.
-      supabase
-        .from("profiles")
-        .select(
-          "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender, other_university_name"
-        )
-        .order("created_at"),
+      fetchProfiles(),
       supabase
         .from("year_managers")
         .select("id, profile_id, year_id, years(id, name, year_number, university_id, universities(name))"),
@@ -931,6 +958,62 @@ function UniversitiesTab({
   );
 }
 
+// مشترك بين كل الأماكن اللي بتعرض مستخدم في تاب "المستخدمين" (كروت
+// الحسابات المصنّفة/الإدارية، وجدول "طلاب بدون جامعة محددة") — عشان علامة
+// "بعتنا له رابط الواتساب؟" تفضل موحّدة بدل ما تتكرر في مكانين. تحديث
+// optimistic فوري (بيتلوّن قبل ما رد السيرفر يوصل)، ولو فشل بيرجع الحالة
+// القديمة ويوضح الخطأ.
+function WhatsappSentToggle({
+  profile,
+  supabase,
+}: {
+  profile: ProfileRow;
+  supabase: SupabaseClient;
+}) {
+  const [sent, setSent] = useState(profile.whatsapp_link_sent);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setSent(profile.whatsapp_link_sent);
+  }, [profile.whatsapp_link_sent]);
+
+  async function handleToggle() {
+    const next = !sent;
+    setSent(next);
+    setBusy(true);
+
+    const { error } = await supabase.rpc("set_whatsapp_link_sent", {
+      target_profile_id: profile.id,
+      sent: next,
+    });
+
+    setBusy(false);
+
+    if (error) {
+      setSent(!next);
+      alert(`فشل تحديث حالة إرسال رابط الواتساب: ${error.message}`);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      disabled={busy}
+      title={sent ? "تم إرسال رابط الواتساب" : "لسه ما اتبعتش رابط الواتساب"}
+      aria-pressed={sent}
+      aria-label="إرسال رابط الواتساب"
+      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-colors disabled:opacity-60 ${
+        sent
+          ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
+          : "border-subtle text-muted hover:border-gold hover:text-gold"
+      }`}
+    >
+      ✓
+    </button>
+  );
+}
+
 function UsersTab({
   profiles,
   yearManagers,
@@ -1130,23 +1213,25 @@ function UsersTab({
     onChange();
   }
 
-  // حساب/سنة null، أو أي دور مش "student" (زي super_admin/year_admin اللي
-  // ممكن يكون لسه شايل university_id/year_id من وقت ما كان طالب قبل الترقية)
-  // بيروحوا لقسم "غير مصنّف / حسابات إدارية" بدل ما يتوهوا داخل فرقة معينة.
+  // القسم ده لحسابات إدارية بس (super_admin/year_admin) — أي حساب role
+  // بتاعه "student" ميظهرش هنا خالص، حتى لو مش متعيّن له جامعة/فرقة (ده
+  // بالظبط اللي بيميّزه عن قسم "طلاب بدون جامعة محددة" تحت). كانت الشرط
+  // القديم بيحط أي طالب من غير year_id صحيح هنا بالغلط.
   function isUnclassified(profile: ProfileRow): boolean {
-    if (profile.role !== "student") return true;
-    return !years.some((y) => y.id === profile.year_id);
+    return profile.role !== "student";
   }
 
   const classifiedProfiles = profiles.filter((p) => !isUnclassified(p));
   const unclassifiedProfiles = profiles.filter(isUnclassified);
 
-  // طلاب اختاروا "أخرى (جامعتي غير موجودة)" وقت التسجيل — بيقعوا أصلاً
-  // ضمن unclassifiedProfiles (مفيش لهم year_id صحيح)، وبيتعرضوا هناك زي أي
-  // حساب غير مصنّف قابل للإدارة الكاملة؛ القسم ده إضافي وللعرض بس، عشان
-  // الأدمن يشوف حجم الطلب الفعلي على جامعات برّه القائمة الحالية.
+  // طلاب مالهمش فرقة صحيحة مطابقة لسنة موجودة فعليًا — إما اختاروا "أخرى
+  // (جامعتي غير موجودة)" وقت التسجيل (year_id null)، أو حالة نادرة زي فرقة
+  // اتحذفت بعد التسجيل (year_id بقى يتيم). بنتحقق من صحة year_id بدل ما
+  // نعتمد بس على university_id === null، عشان محدش من الحالتين يختفي من
+  // كل الأقسام (مش هيبقى في شجرة الجامعات لأن year_id مش مطابق لأي سنة
+  // فيها، ومش المفروض يظهر في "غير مصنّف / حسابات إدارية" لأنه طالب).
   const noUniversityStudents = profiles.filter(
-    (p) => p.role === "student" && p.university_id === null
+    (p) => p.role === "student" && !years.some((y) => y.id === p.year_id)
   );
 
   const GENDER_GROUPS: { key: string; label: string; match: (p: ProfileRow) => boolean }[] = [
@@ -1196,13 +1281,16 @@ function UsersTab({
         }`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-semibold text-ink">{profile.full_name || profile.email}</p>
-            <p className="text-sm text-muted">{profile.email}</p>
-            {profile.phone && <p className="text-sm text-muted">{profile.phone}</p>}
-            <p className="mt-1 text-xs text-muted">
-              {new Date(profile.created_at).toLocaleDateString("ar-EG")}
-            </p>
+          <div className="flex items-start gap-2">
+            <WhatsappSentToggle profile={profile} supabase={supabase} />
+            <div>
+              <p className="font-semibold text-ink">{profile.full_name || profile.email}</p>
+              <p className="text-sm text-muted">{profile.email}</p>
+              {profile.phone && <p className="text-sm text-muted">{profile.phone}</p>}
+              <p className="mt-1 text-xs text-muted">
+                {new Date(profile.created_at).toLocaleDateString("ar-EG")}
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center rounded-full bg-gold/10 px-3 py-1 text-xs font-semibold text-gold">
@@ -1475,8 +1563,10 @@ function UsersTab({
                     <tr className="border-b border-subtle text-xs text-muted">
                       <th className="px-3 py-2 font-medium">اسم الطالب</th>
                       <th className="px-3 py-2 font-medium">البريد الإلكتروني</th>
+                      <th className="px-3 py-2 font-medium">رقم الهاتف</th>
                       <th className="px-3 py-2 font-medium">الجامعة المكتوبة يدويًا</th>
                       <th className="px-3 py-2 font-medium">تاريخ التسجيل</th>
+                      <th className="px-3 py-2 font-medium">واتساب</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1486,11 +1576,15 @@ function UsersTab({
                           {profile.full_name || "—"}
                         </td>
                         <td className="px-3 py-2 text-muted">{profile.email}</td>
+                        <td className="px-3 py-2 text-muted">{profile.phone || "—"}</td>
                         <td className="px-3 py-2 text-muted">
                           {profile.other_university_name || "—"}
                         </td>
                         <td className="px-3 py-2 text-muted">
                           {new Date(profile.created_at).toLocaleDateString("ar-EG")}
+                        </td>
+                        <td className="px-3 py-2">
+                          <WhatsappSentToggle profile={profile} supabase={supabase} />
                         </td>
                       </tr>
                     ))}
