@@ -116,7 +116,6 @@ type ProfileRow = {
   is_active: boolean;
   gender: string | null;
   other_university_name: string | null;
-  whatsapp_link_sent: boolean;
 };
 type YearManagerRow = {
   id: number;
@@ -302,34 +301,12 @@ export default function AdminPage() {
   }
 
   async function fetchProfiles() {
-    const full = await supabase
-      .from("profiles")
-      .select(
-        "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender, other_university_name, whatsapp_link_sent"
-      )
-      .order("created_at");
-
-    if (!full.error) return full;
-
-    // whatsapp_link_sent ممكن يكون لسه معملوش migration
-    // (whatsapp_link_tracking_setup.sql) — نرجع لاستعلام بدونه عشان باقي
-    // التابات اللي بتعتمد على profiles (المستخدمين، الإحصائيات، وقت
-    // الطلاب) مايتوقفوش بالكامل.
-    const withoutWhatsapp = await supabase
+    return supabase
       .from("profiles")
       .select(
         "id, email, full_name, phone, role, created_at, university_id, year_id, is_active, gender, other_university_name"
       )
       .order("created_at");
-
-    if (!withoutWhatsapp.error) {
-      return {
-        ...withoutWhatsapp,
-        data: (withoutWhatsapp.data ?? []).map((p) => ({ ...p, whatsapp_link_sent: false })),
-      };
-    }
-
-    return full;
   }
 
   async function fetchPlaylists() {
@@ -958,53 +935,39 @@ function UniversitiesTab({
   );
 }
 
-// مشترك بين كل الأماكن اللي بتعرض مستخدم في تاب "المستخدمين" (كروت
-// الحسابات المصنّفة/الإدارية، وجدول "طلاب بدون جامعة محددة") — عشان علامة
-// "بعتنا له رابط الواتساب؟" تفضل موحّدة بدل ما تتكرر في مكانين. تحديث
-// optimistic فوري (بيتلوّن قبل ما رد السيرفر يوصل)، ولو فشل بيرجع الحالة
-// القديمة ويوضح الخطأ.
-function WhatsappSentToggle({
-  profile,
-  supabase,
+type TrackingItem = { id: string; name: string; display_order: number };
+type TrackingStatusRow = { profile_id: string; tracking_item_id: string; is_done: boolean };
+
+function trackingKey(profileId: string, trackingItemId: string): string {
+  return `${profileId}:${trackingItemId}`;
+}
+
+// عنصر تتبع واحد (زي "واتساب"/"فيسبوك"/"تليجرام") لطالب واحد — مشترك بين
+// كل الأماكن اللي بتعرض مستخدم في تاب "المستخدمين" (كروت الحسابات
+// المصنّفة/الإدارية، جدول "طلاب بدون جامعة محددة"، وجداول كل جامعة/فرقة).
+// الحالة والتحديث optimistic بيتداروا من UsersTab نفسها (مش هنا محليًا)
+// عشان لو نفس الطالب ظهر في أكتر من مكان يوم ما، الحالة تفضل متطابقة.
+function TrackingToggle({
+  label,
+  isDone,
+  busy,
+  onToggle,
 }: {
-  profile: ProfileRow;
-  supabase: SupabaseClient;
+  label: string;
+  isDone: boolean;
+  busy: boolean;
+  onToggle: () => void;
 }) {
-  const [sent, setSent] = useState(profile.whatsapp_link_sent);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    setSent(profile.whatsapp_link_sent);
-  }, [profile.whatsapp_link_sent]);
-
-  async function handleToggle() {
-    const next = !sent;
-    setSent(next);
-    setBusy(true);
-
-    const { error } = await supabase.rpc("set_whatsapp_link_sent", {
-      target_profile_id: profile.id,
-      sent: next,
-    });
-
-    setBusy(false);
-
-    if (error) {
-      setSent(!next);
-      alert(`فشل تحديث حالة إرسال رابط الواتساب: ${error.message}`);
-    }
-  }
-
   return (
     <button
       type="button"
-      onClick={handleToggle}
+      onClick={onToggle}
       disabled={busy}
-      title={sent ? "تم إرسال رابط الواتساب" : "لسه ما اتبعتش رابط الواتساب"}
-      aria-pressed={sent}
-      aria-label="إرسال رابط الواتساب"
+      title={`${label}: ${isDone ? "تم" : "لسه لأ"}`}
+      aria-pressed={isDone}
+      aria-label={label}
       className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-bold transition-colors disabled:opacity-60 ${
-        sent
+        isDone
           ? "border-emerald-500 bg-emerald-500/10 text-emerald-500"
           : "border-subtle text-muted hover:border-gold hover:text-gold"
       }`}
@@ -1043,6 +1006,115 @@ function UsersTab({
   });
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // نظام التتبع العام (عناصر يضيفها الأدمن بالاسم زي "واتساب"/"تليجرام")
+  // — الحالة والمنطق هنا في UsersTab (مش داخل التوجل نفسه) عشان لو نفس
+  // الطالب ظهر في أكتر من جدول، الحالة تفضل مصدر واحد متطابق في كل مكان.
+  const [trackingItems, setTrackingItems] = useState<TrackingItem[]>([]);
+  const [trackingStatus, setTrackingStatus] = useState<Map<string, boolean>>(new Map());
+  const [busyTrackingKeys, setBusyTrackingKeys] = useState<Set<string>>(new Set());
+  const [isAddingTrackingItem, setIsAddingTrackingItem] = useState(false);
+  const [newTrackingItemName, setNewTrackingItemName] = useState("");
+  const [trackingItemSaving, setTrackingItemSaving] = useState(false);
+  const [trackingItemError, setTrackingItemError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTracking() {
+      const [{ data: items }, { data: statusRows }] = await Promise.all([
+        supabase.from("tracking_items").select("id, name, display_order").order("display_order"),
+        supabase.from("profile_tracking_status").select("profile_id, tracking_item_id, is_done"),
+      ]);
+
+      if (cancelled) return;
+
+      setTrackingItems((items ?? []) as TrackingItem[]);
+
+      const map = new Map<string, boolean>();
+      for (const row of (statusRows ?? []) as TrackingStatusRow[]) {
+        map.set(trackingKey(row.profile_id, row.tracking_item_id), row.is_done);
+      }
+      setTrackingStatus(map);
+    }
+
+    loadTracking();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
+
+  async function handleToggleTracking(profileId: string, trackingItemId: string) {
+    const key = trackingKey(profileId, trackingItemId);
+    const current = trackingStatus.get(key) ?? false;
+    const next = !current;
+
+    setTrackingStatus((prev) => new Map(prev).set(key, next));
+    setBusyTrackingKeys((prev) => new Set(prev).add(key));
+
+    const { error } = await supabase.rpc("set_tracking_status", {
+      p_profile_id: profileId,
+      p_tracking_item_id: trackingItemId,
+      p_is_done: next,
+    });
+
+    setBusyTrackingKeys((prev) => {
+      const nextKeys = new Set(prev);
+      nextKeys.delete(key);
+      return nextKeys;
+    });
+
+    if (error) {
+      setTrackingStatus((prev) => new Map(prev).set(key, current));
+      alert(`فشل تحديث حالة التتبع: ${error.message}`);
+    }
+  }
+
+  async function handleAddTrackingItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const name = newTrackingItemName.trim();
+    if (!name) return;
+
+    setTrackingItemSaving(true);
+    setTrackingItemError(null);
+
+    const { data, error } = await supabase.rpc("add_tracking_item", { p_name: name });
+
+    setTrackingItemSaving(false);
+
+    if (error) {
+      setTrackingItemError(`فشل إضافة عنصر التتبع: ${error.message}`);
+      return;
+    }
+
+    setTrackingItems((prev) => [
+      ...prev,
+      { id: data as string, name, display_order: prev.length },
+    ]);
+    setNewTrackingItemName("");
+    setIsAddingTrackingItem(false);
+  }
+
+  function renderTrackingToggles(profileId: string) {
+    if (trackingItems.length === 0) return null;
+
+    return (
+      <div className="flex items-center gap-1.5">
+        {trackingItems.map((item) => {
+          const key = trackingKey(profileId, item.id);
+          return (
+            <TrackingToggle
+              key={item.id}
+              label={item.name}
+              isDone={trackingStatus.get(key) ?? false}
+              busy={busyTrackingKeys.has(key)}
+              onToggle={() => handleToggleTracking(profileId, item.id)}
+            />
+          );
+        })}
+      </div>
+    );
+  }
 
   function yearsForUniversity(universityId: number | string): Year[] {
     return years.filter((y) => String(y.university_id) === String(universityId));
@@ -1282,7 +1354,7 @@ function UsersTab({
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2">
-            <WhatsappSentToggle profile={profile} supabase={supabase} />
+            {renderTrackingToggles(profile.id)}
             <div>
               <p className="font-semibold text-ink">{profile.full_name || profile.email}</p>
               <p className="text-sm text-muted">{profile.email}</p>
@@ -1508,6 +1580,58 @@ function UsersTab({
     <div className="flex flex-col gap-4">
       {formError && <p className="text-sm text-red-600">{formError}</p>}
 
+      <div className="rounded-xl border border-subtle bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-semibold text-ink">
+            عناصر التتبع{" "}
+            <span className="font-normal text-muted">
+              ({trackingItems.map((i) => i.name).join("، ") || "لا يوجد بعد"})
+            </span>
+          </p>
+          <button
+            type="button"
+            onClick={() => setIsAddingTrackingItem((prev) => !prev)}
+            className="text-sm font-medium text-gold hover:underline"
+          >
+            + عنصر تتبع جديد
+          </button>
+        </div>
+
+        {isAddingTrackingItem && (
+          <form
+            onSubmit={handleAddTrackingItem}
+            className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-panel p-3"
+          >
+            <input
+              autoFocus
+              value={newTrackingItemName}
+              onChange={(e) => setNewTrackingItemName(e.target.value)}
+              placeholder="اسم عنصر التتبع (مثلاً: تليجرام)"
+              className={`${inputClasses} sm:w-64`}
+            />
+            <button
+              type="submit"
+              disabled={trackingItemSaving || !newTrackingItemName.trim()}
+              className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
+            >
+              {trackingItemSaving ? "جارٍ الحفظ..." : "حفظ"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddingTrackingItem(false);
+                setNewTrackingItemName("");
+                setTrackingItemError(null);
+              }}
+              className="text-xs font-medium text-muted hover:text-ink"
+            >
+              إلغاء
+            </button>
+          </form>
+        )}
+        {trackingItemError && <p className="mt-2 text-sm text-red-600">{trackingItemError}</p>}
+      </div>
+
       {profiles.length === 0 ? (
         <p className="text-sm text-muted">لا يوجد مستخدمين مسجلين بعد</p>
       ) : (
@@ -1566,7 +1690,11 @@ function UsersTab({
                       <th className="px-3 py-2 font-medium">رقم الهاتف</th>
                       <th className="px-3 py-2 font-medium">الجامعة المكتوبة يدويًا</th>
                       <th className="px-3 py-2 font-medium">تاريخ التسجيل</th>
-                      <th className="px-3 py-2 font-medium">واتساب</th>
+                      {trackingItems.map((item) => (
+                        <th key={item.id} className="px-3 py-2 font-medium">
+                          {item.name}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -1583,9 +1711,19 @@ function UsersTab({
                         <td className="px-3 py-2 text-muted">
                           {new Date(profile.created_at).toLocaleDateString("ar-EG")}
                         </td>
-                        <td className="px-3 py-2">
-                          <WhatsappSentToggle profile={profile} supabase={supabase} />
-                        </td>
+                        {trackingItems.map((item) => {
+                          const key = trackingKey(profile.id, item.id);
+                          return (
+                            <td key={item.id} className="px-3 py-2">
+                              <TrackingToggle
+                                label={item.name}
+                                isDone={trackingStatus.get(key) ?? false}
+                                busy={busyTrackingKeys.has(key)}
+                                onToggle={() => handleToggleTracking(profile.id, item.id)}
+                              />
+                            </td>
+                          );
+                        })}
                       </tr>
                     ))}
                   </tbody>
