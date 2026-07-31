@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   DEFAULT_SITE_SETTINGS,
@@ -15,6 +15,7 @@ import StatCardSkeleton from "@/components/admin/StatCardSkeleton";
 import VisitsTimelineChart from "@/components/admin/VisitsTimelineChart";
 import QaModerationTab from "@/components/admin/QaModerationTab";
 import ScheduleTab from "@/components/admin/ScheduleTab";
+import { useClickOutside } from "@/hooks/useClickOutside";
 import { BookOpen, Eye, TrendingUp, Users } from "lucide-react";
 import {
   Bar,
@@ -977,6 +978,97 @@ function TrackingToggle({
   );
 }
 
+// قائمة إجراءات (⋮) بدل ما الأزرار الأربعة (تعيين/تعديل/تعطيل/حذف) تتحط
+// نص جنب بعض في عمود جدول ضيّق — نفس المنطق القديم بالحرف (زي إخفاء
+// الإجراءات تمامًا لصف super_admin)، بس اتلمّت في قائمة منسدلة صغيرة
+// بدل ما تزاحم عرض الجدول. مستخدمة في جدول شجرة الجامعة/الفرقة بس (كروت
+// "غير مصنّف/حسابات إدارية" لسه شكلها القديم زي ما هو، مش جزء من الطلب).
+function ProfileActionsMenu({
+  profile,
+  isBusy,
+  onAssign,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  profile: ProfileRow;
+  isBusy: boolean;
+  onAssign: () => void;
+  onEdit: () => void;
+  onToggleActive: () => void;
+  onDelete: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useClickOutside(menuRef, () => setIsOpen(false));
+
+  if (profile.role === "super_admin") return null;
+
+  return (
+    <div ref={menuRef} className="relative inline-block text-right">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-label="إجراءات"
+        aria-expanded={isOpen}
+        disabled={isBusy}
+        className="flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors hover:bg-panel hover:text-ink disabled:opacity-60"
+      >
+        ⋮
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 top-full z-10 mt-1 w-48 rounded-lg border border-subtle bg-card p-1.5 shadow-lg">
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => {
+              setIsOpen(false);
+              onAssign();
+            }}
+            className="block w-full rounded-md px-3 py-2 text-right text-xs font-medium text-ink transition-colors hover:bg-panel disabled:opacity-60"
+          >
+            {profile.role === "year_admin" ? "تعيين على فرقة إضافية" : "تعيين كأدمن فرقة"}
+          </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => {
+              setIsOpen(false);
+              onEdit();
+            }}
+            className="block w-full rounded-md px-3 py-2 text-right text-xs font-medium text-ink transition-colors hover:bg-panel disabled:opacity-60"
+          >
+            تعديل
+          </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => {
+              setIsOpen(false);
+              onToggleActive();
+            }}
+            className="block w-full rounded-md px-3 py-2 text-right text-xs font-medium text-ink transition-colors hover:bg-panel disabled:opacity-60"
+          >
+            {profile.is_active ? "تعطيل" : "تفعيل"}
+          </button>
+          <button
+            type="button"
+            disabled={isBusy}
+            onClick={() => {
+              setIsOpen(false);
+              onDelete();
+            }}
+            className="block w-full rounded-md px-3 py-2 text-right text-xs font-medium text-red-600 transition-colors hover:bg-panel disabled:opacity-60"
+          >
+            حذف
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function UsersTab({
   profiles,
   yearManagers,
@@ -1338,6 +1430,145 @@ function UsersTab({
     })
     .filter((group) => group.totalCount > 0);
 
+  // فورم التعديل وفورم التعيين مشتركين بين كروت "غير مصنّف/حسابات إدارية"
+  // (renderProfileRow) وجدول شجرة الجامعة/الفرقة (renderProfileTableRow) —
+  // نفس المنطق والحقول بالحرف، استخرجتهم هنا عشان محتاجين يظهروا جوه
+  // تخطيطين مختلفين (li منفصل / صف جدول بعرض كامل) من غير تكرار الكود.
+  function renderEditForm(profile: ProfileRow) {
+    const isBusy = busyUserId === profile.id;
+    return (
+      <form onSubmit={handleEditSubmit} className="flex flex-col gap-3 rounded-lg bg-panel p-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-ink">الاسم</label>
+            <input
+              required
+              value={editForm.fullName}
+              onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+              className={inputClasses}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-ink">رقم الهاتف</label>
+            <input
+              value={editForm.phone}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              className={inputClasses}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
+            <select
+              value={editForm.universityId}
+              onChange={(e) => {
+                const nextUniId = e.target.value;
+                setEditForm({
+                  ...editForm,
+                  universityId: nextUniId,
+                  yearId: yearsForUniversity(nextUniId)[0]?.id ?? "",
+                });
+              }}
+              className={inputClasses}
+            >
+              {universities.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
+            <select
+              value={editForm.yearId}
+              onChange={(e) => setEditForm({ ...editForm, yearId: e.target.value })}
+              className={inputClasses}
+            >
+              {yearsForUniversity(editForm.universityId).length === 0 && (
+                <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+              )}
+              {yearsForUniversity(editForm.universityId).map((y) => (
+                <option key={y.id} value={y.id}>
+                  {y.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={isBusy}
+            className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
+          >
+            حفظ
+          </button>
+          <button type="button" onClick={cancelEdit} className="text-xs font-medium text-muted hover:text-ink">
+            إلغاء
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  function renderAssignForm(profile: ProfileRow) {
+    return (
+      <form
+        onSubmit={handleAssignSubmit}
+        className="flex flex-col gap-3 rounded-lg bg-panel p-3 sm:flex-row sm:items-end"
+      >
+        <div className="flex-1">
+          <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
+          <select
+            value={assignUniversityId}
+            onChange={(e) => {
+              setAssignUniversityId(e.target.value);
+              setAssignYearId(yearsForUniversity(e.target.value)[0]?.id ?? "");
+            }}
+            className={inputClasses}
+          >
+            {universities.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
+          <select
+            value={assignYearId}
+            onChange={(e) => setAssignYearId(e.target.value)}
+            className={inputClasses}
+          >
+            {yearsForUniversity(assignUniversityId).length === 0 && (
+              <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
+            )}
+            {yearsForUniversity(assignUniversityId).map((y) => (
+              <option key={y.id} value={y.id}>
+                {y.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={busyUserId === profile.id || !assignYearId}
+            className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
+          >
+            حفظ
+          </button>
+          <button type="button" onClick={cancelAssign} className="text-xs font-medium text-muted hover:text-ink">
+            إلغاء
+          </button>
+        </div>
+      </form>
+    );
+  }
+
   function renderProfileRow(profile: ProfileRow) {
     const assignments = yearManagers.filter((ym) => ym.profile_id === profile.id);
     const isAssigning = assigningUserId === profile.id;
@@ -1412,88 +1643,7 @@ function UsersTab({
           </div>
         </div>
 
-        {isEditing && (
-          <form
-            onSubmit={handleEditSubmit}
-            className="mt-3 flex flex-col gap-3 rounded-lg bg-panel p-3"
-          >
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium text-ink">الاسم</label>
-                <input
-                  required
-                  value={editForm.fullName}
-                  onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                  className={inputClasses}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium text-ink">رقم الهاتف</label>
-                <input
-                  value={editForm.phone}
-                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                  className={inputClasses}
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
-                <select
-                  value={editForm.universityId}
-                  onChange={(e) => {
-                    const nextUniId = e.target.value;
-                    setEditForm({
-                      ...editForm,
-                      universityId: nextUniId,
-                      yearId: yearsForUniversity(nextUniId)[0]?.id ?? "",
-                    });
-                  }}
-                  className={inputClasses}
-                >
-                  {universities.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
-                <select
-                  value={editForm.yearId}
-                  onChange={(e) => setEditForm({ ...editForm, yearId: e.target.value })}
-                  className={inputClasses}
-                >
-                  {yearsForUniversity(editForm.universityId).length === 0 && (
-                    <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
-                  )}
-                  {yearsForUniversity(editForm.universityId).map((y) => (
-                    <option key={y.id} value={y.id}>
-                      {y.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={isBusy}
-                className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
-              >
-                حفظ
-              </button>
-              <button
-                type="button"
-                onClick={cancelEdit}
-                className="text-xs font-medium text-muted hover:text-ink"
-              >
-                إلغاء
-              </button>
-            </div>
-          </form>
-        )}
+        {isEditing && <div className="mt-3">{renderEditForm(profile)}</div>}
 
         {profile.role === "year_admin" && assignments.length > 0 && (
           <ul className="mt-3 flex flex-col gap-2 border-t border-subtle bg-card pt-3">
@@ -1515,64 +1665,72 @@ function UsersTab({
           </ul>
         )}
 
-        {isAssigning && (
-          <form
-            onSubmit={handleAssignSubmit}
-            className="mt-3 flex flex-col gap-3 rounded-lg bg-panel p-3 sm:flex-row sm:items-end"
-          >
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-ink">الجامعة</label>
-              <select
-                value={assignUniversityId}
-                onChange={(e) => {
-                  setAssignUniversityId(e.target.value);
-                  setAssignYearId(yearsForUniversity(e.target.value)[0]?.id ?? "");
-                }}
-                className={inputClasses}
-              >
-                {universities.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="mb-1 block text-xs font-medium text-ink">الفرقة</label>
-              <select
-                value={assignYearId}
-                onChange={(e) => setAssignYearId(e.target.value)}
-                className={inputClasses}
-              >
-                {yearsForUniversity(assignUniversityId).length === 0 && (
-                  <option value="">لا توجد فرق دراسية لهذه الجامعة</option>
-                )}
-                {yearsForUniversity(assignUniversityId).map((y) => (
-                  <option key={y.id} value={y.id}>
-                    {y.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={busyUserId === profile.id || !assignYearId}
-                className="rounded-full bg-gold text-gold-ink px-4 py-2 text-xs font-semibold shadow-sm disabled:opacity-60"
-              >
-                حفظ
-              </button>
-              <button
-                type="button"
-                onClick={cancelAssign}
-                className="text-xs font-medium text-muted hover:text-ink"
-              >
-                إلغاء
-              </button>
-            </div>
-          </form>
-        )}
+        {isAssigning && <div className="mt-3">{renderAssignForm(profile)}</div>}
       </li>
+    );
+  }
+
+  // نفس بيانات وأزرار renderProfileRow بالحرف (نفس handlers)، لكن كصف
+  // جدول بدل كارت — مستخدمة في جدول شجرة الجامعة/الفرقة عشان تبقى
+  // متطابقة الشكل مع جدول "طلاب بدون جامعة محددة". الأزرار الأربعة
+  // اتلمّت في قائمة ⋮ (ProfileActionsMenu) بدل ما تزاحم عرض الجدول.
+  const profileTableColumnCount = 5 + trackingItems.length;
+
+  function renderProfileTableRow(profile: ProfileRow) {
+    const isAssigning = assigningUserId === profile.id;
+    const isEditing = editingUserId === profile.id;
+    const isBusy = busyUserId === profile.id;
+
+    return (
+      <Fragment key={profile.id}>
+        <tr className={`border-b border-subtle last:border-0 ${!profile.is_active ? "opacity-70" : ""}`}>
+          <td className="px-3 py-2 font-medium text-ink">
+            {profile.full_name || "—"}
+            {!profile.is_active && (
+              <span className="mr-2 inline-flex items-center rounded-full bg-red-600/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+                معطّل
+              </span>
+            )}
+          </td>
+          <td className="px-3 py-2 text-muted">{profile.email}</td>
+          <td className="px-3 py-2 text-muted">{profile.phone || "—"}</td>
+          <td className="px-3 py-2 text-muted">
+            {new Date(profile.created_at).toLocaleDateString("ar-EG")}
+          </td>
+          {trackingItems.map((item) => {
+            const key = trackingKey(profile.id, item.id);
+            return (
+              <td key={item.id} className="px-3 py-2">
+                <TrackingToggle
+                  label={item.name}
+                  isDone={trackingStatus.get(key) ?? false}
+                  busy={busyTrackingKeys.has(key)}
+                  onToggle={() => handleToggleTracking(profile.id, item.id)}
+                />
+              </td>
+            );
+          })}
+          <td className="px-3 py-2">
+            <ProfileActionsMenu
+              profile={profile}
+              isBusy={isBusy}
+              onAssign={() => startAssign(profile.id)}
+              onEdit={() => startEdit(profile)}
+              onToggleActive={() => handleToggleActive(profile)}
+              onDelete={() => handleDeleteUser(profile)}
+            />
+          </td>
+        </tr>
+
+        {(isEditing || isAssigning) && (
+          <tr className="border-b border-subtle last:border-0">
+            <td colSpan={profileTableColumnCount} className="bg-panel p-3">
+              {isEditing && renderEditForm(profile)}
+              {isAssigning && renderAssignForm(profile)}
+            </td>
+          </tr>
+        )}
+      </Fragment>
     );
   }
 
@@ -1663,9 +1821,25 @@ function UsersTab({
                               ({genderGroup.profiles.length})
                             </span>
                           </summary>
-                          <ul className="flex flex-col gap-3 p-3 pt-0">
-                            {genderGroup.profiles.map(renderProfileRow)}
-                          </ul>
+                          <div className="overflow-x-auto p-3 pt-0">
+                            <table className="w-full text-right text-sm">
+                              <thead>
+                                <tr className="border-b border-subtle text-xs text-muted">
+                                  <th className="px-3 py-2 font-medium">اسم الطالب</th>
+                                  <th className="px-3 py-2 font-medium">البريد الإلكتروني</th>
+                                  <th className="px-3 py-2 font-medium">رقم الهاتف</th>
+                                  <th className="px-3 py-2 font-medium">تاريخ التسجيل</th>
+                                  {trackingItems.map((item) => (
+                                    <th key={item.id} className="px-3 py-2 font-medium">
+                                      {item.name}
+                                    </th>
+                                  ))}
+                                  <th className="px-3 py-2 font-medium" />
+                                </tr>
+                              </thead>
+                              <tbody>{genderGroup.profiles.map(renderProfileTableRow)}</tbody>
+                            </table>
+                          </div>
                         </details>
                       ))}
                     </div>
