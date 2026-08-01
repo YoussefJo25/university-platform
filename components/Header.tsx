@@ -21,6 +21,8 @@ const studyToolsLinks = [
   { href: "/study-tools/pomodoro", label: "تايمر البومودورو" },
   { href: "/study-tools/tasks", label: "التاسكات" },
   { href: "/study-tools/schedule", label: "جدول المحاضرات" },
+  { href: "/study-tools/attendance", label: "بوصلة الحضور" },
+  { href: "/study-tools/task-compass", label: "بوصلة المهام" },
   { href: "/gpa-calculator", label: "حاسبة تقدير المعدل" },
 ];
 

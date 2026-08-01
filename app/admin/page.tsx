@@ -87,6 +87,7 @@ type Course = {
   view_count: number;
   order_index: number;
   created_at: string;
+  has_section: boolean;
 };
 type Book = {
   id: number;
@@ -244,6 +245,17 @@ export default function AdminPage() {
   }
 
   async function fetchCourses() {
+    const withSection = await supabase
+      .from("courses")
+      .select(
+        "id, name, description, year_id, term_id, category, parent_course_id, view_count, order_index, created_at, has_section"
+      )
+      .order("order_index")
+      .order("name");
+
+    if (!withSection.error) return withSection;
+
+    // has_section ممكن يكون لسه معملوش migration (attendance_setup.sql)
     const withOrder = await supabase
       .from("courses")
       .select(
@@ -252,7 +264,9 @@ export default function AdminPage() {
       .order("order_index")
       .order("name");
 
-    if (!withOrder.error) return withOrder;
+    if (!withOrder.error) {
+      return { ...withOrder, data: (withOrder.data ?? []).map((c) => ({ ...c, has_section: false })) };
+    }
 
     // order_index ممكن يكون لسه معملوش migration (course_order_setup.sql)
     const withViewCount = await supabase
@@ -263,7 +277,10 @@ export default function AdminPage() {
       .order("name");
 
     if (!withViewCount.error) {
-      return { ...withViewCount, data: (withViewCount.data ?? []).map((c) => ({ ...c, order_index: 0 })) };
+      return {
+        ...withViewCount,
+        data: (withViewCount.data ?? []).map((c) => ({ ...c, order_index: 0, has_section: false })),
+      };
     }
 
     // view_count ممكن يكون لسه معملوش migration (content_stats_setup.sql)
@@ -275,7 +292,7 @@ export default function AdminPage() {
     if (!full.error) {
       return {
         ...full,
-        data: (full.data ?? []).map((c) => ({ ...c, view_count: 0, order_index: 0 })),
+        data: (full.data ?? []).map((c) => ({ ...c, view_count: 0, order_index: 0, has_section: false })),
       };
     }
 
@@ -294,6 +311,7 @@ export default function AdminPage() {
           parent_course_id: null,
           view_count: 0,
           order_index: 0,
+          has_section: false,
         })),
       };
     }
@@ -3071,6 +3089,7 @@ function CoursesTab({
     year_id: number | string;
     term_id: number | string;
     parent_course_id: number | string;
+    has_section: boolean;
   };
 
   function emptyForm(): CourseFormState {
@@ -3082,6 +3101,7 @@ function CoursesTab({
       year_id: initialYearId,
       term_id: termsForYear(initialYearId)[0]?.id ?? "",
       parent_course_id: "",
+      has_section: false,
     };
   }
 
@@ -3122,6 +3142,7 @@ function CoursesTab({
       year_id: course.year_id ?? initialYearId,
       term_id: course.term_id ?? "",
       parent_course_id: course.parent_course_id ?? "",
+      has_section: course.has_section,
     });
   }
 
@@ -3201,6 +3222,7 @@ function CoursesTab({
     year_id: number | null;
     term_id: number | null;
     parent_course_id: number | null;
+    has_section: boolean;
   } {
     return isAcademic
       ? {
@@ -3210,6 +3232,7 @@ function CoursesTab({
           year_id: Number(form.year_id),
           term_id: form.term_id ? Number(form.term_id) : null,
           parent_course_id: null,
+          has_section: form.has_section,
         }
       : {
           name: form.name,
@@ -3218,6 +3241,7 @@ function CoursesTab({
           year_id: null,
           term_id: null,
           parent_course_id: form.parent_course_id ? Number(form.parent_course_id) : null,
+          has_section: false,
         };
   }
 
@@ -3405,6 +3429,15 @@ function CoursesTab({
                   </option>
                 ))}
               </select>
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={addForm.has_section}
+                  onChange={(e) => setAddForm({ ...addForm, has_section: e.target.checked })}
+                  className="h-4 w-4 rounded border-subtle accent-gold"
+                />
+                المادة ليها سكشن منفصل
+              </label>
             </>
           ) : (
             <div>
@@ -3527,6 +3560,15 @@ function CoursesTab({
                     </option>
                   ))}
                 </select>
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={editForm.has_section}
+                    onChange={(e) => setEditForm({ ...editForm, has_section: e.target.checked })}
+                    className="h-4 w-4 rounded border-subtle accent-gold"
+                  />
+                  المادة ليها سكشن منفصل
+                </label>
               </>
             ) : (
               <div>
